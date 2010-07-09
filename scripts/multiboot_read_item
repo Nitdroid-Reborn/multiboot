@@ -1,0 +1,68 @@
+#!/usr/bin/awk -f
+
+	/^ITEM_NAME/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__NAME__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_KERNEL/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__KERNEL__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_PARAMS/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__PARAMS__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_MODULES/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__MODULES__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_DEVICE/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__FS_ROOT__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_FSTYPE/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__FS_TYPE__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_FSOPTIONS/ {
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__FS_OPTS__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_LINUXRC/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__INITRC__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_INITRC/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__INITRC__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_INITFS/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__INITFS__%d__=\"%s\"\n", FN, str);
+			}
+	/^ITEM_LOOPS/	{
+				pos = index($0,"=") + 1;
+				str = substr($0,pos);
+				gsub(/"/, "", str); 
+				printf("ARRAY__LOOPS__%d__=\"%s\"\n", FN, str);
+			}

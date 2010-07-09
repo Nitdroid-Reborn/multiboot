@@ -1,0 +1,137 @@
+#!/bin/sh
+
+say()
+{
+	echo "preinit: $1"
+}
+
+
+init_system()
+{
+        mount -t proc none /proc
+        mount -t sysfs none /sys
+        mount -t tmpfs none -o size=512K /tmp
+
+        mkdir /tmp/dev
+
+	# The twl4030 can either be named twl4030-adc or twl4030-madc.
+	# So we check for both.
+
+	madc_minor=$(grep twl4030-adc /proc/misc | cut -d " " -f 2)
+	
+	if [ -z $madc_minor ] ; then
+		madc_minor=$(grep twl4030-madc /proc/misc | cut -d " " -f 2)
+	fi
+
+	if [ -n $madc_minor ] ; then
+		mknod /tmp/dev/twl4030-adc c 10 $madc_minor
+	fi
+}
+
+
+fini_system()
+{
+	if [ "$have_ptys" = "1" ] ; then
+		umount /dev/pts
+	fi
+
+	umount /sys
+	umount /tmp
+
+	# /etc/mtab is linked /proc/mounts, and unmount tries to change
+	# /etc/mtab which causes warnings. To prevent them, we unmount /proc
+	# last and direct its warning message to /dev/null
+	umount /proc 2> /dev/null
+	if [ -e /proc/mounts ]; then
+		rm -f /proc/mounts # remove stray mounts
+	fi
+}
+
+
+sys_config()
+{
+	# configure /sys options
+	awk -f /sbin/read_cfg.awk /etc/pmconfig
+
+	# set UART timeout to 10s
+	echo 10 > /sys/devices/platform/serial8250.0/sleep_timeout
+
+	# Change ownership to allow locking for pulseaudio
+	chown pulse:pulse /sys/power/vdd2_lock
+
+	rd_mode=$(cal-tool --get-rd-mode 2> /dev/null)
+	if [ "x$rd_mode" = "xenabled" ]
+	then
+	        rd_mode=1
+	        say "R&D mode enabled"
+		echo active > /sys/devices/platform/gpio-switch/sleep_ind/state
+		awk '/sleep_ind/{ if ($2 == 1) { VALUE="active"; } else { VALUE="inactive"; } print VALUE > "/sys/devices/platform/gpio-switch/sleep_ind/state"  }' < /etc/pmconfig
+	else
+        	rd_mode=0
+	fi
+}
+
+
+prepare_core() 
+{
+	if [ -f /etc/osso_software_version ]
+	then 
+		release=`cat /etc/osso_software_version`
+		echo "/media/mmc1/core-dumps/%e-%s-%p-$release.core" >/proc/sys/kernel/core_pattern
+	fi
+	ulimit -c unlimited
+	ulimit -l unlimited
+}
+
+
+enter_state()
+{
+	echo active > /sys/devices/platform/gpio-switch/cmt_bsi/state
+
+	STATE=`getbootstate`
+	say "Entering state '$STATE'."
+
+	case $STATE in 
+		BOOT)
+			def_runlevel=6
+			;;
+		USER|FLASH)
+			def_runlevel=2
+			;;
+		ACT_DEAD)
+			def_runlevel=5
+			;;
+		LOCAL|TEST)
+			def_runlevel=3
+			;;
+		SHUTDOWN)
+			def_runlevel=0
+			;;
+		*)
+			say "Houston, we have a problem, powering off..."
+			text2screen -c -x 0 -y 0 -h 80 -w 800
+			text2screen -t "Malfunction !" -x 0 -y 0 -s 4
+			text2screen -t "Device shutdown in 10s" -x 0 -y 20 -s 4
+			sleep 10
+			poweroff -f
+			;;
+	esac
+}
+
+
+boot()
+{
+	exec /sbin/init $def_runlevel
+	reboot -f
+}
+
+
+
+init_system
+sys_config
+prepare_core
+enter_state
+fini_system
+boot
+
+# End.

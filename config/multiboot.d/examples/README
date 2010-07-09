@@ -1,0 +1,84 @@
+
+Wellcome to bootmenu2
+~~~~~~~~~~~~~~~~~~~~~
+
+This is a completely rewritten bootmenu for Maemo 5.
+
+
+To install the tar ball, do
+
+	cd /
+	tar xzvf .../bootmenu2.xxx.tar.gz
+
+
+All the configuration files are in /etc.
+
+
+The items in /etc/bootmenu.d/<item>.item can have the following keys:
+
+-- A line starting with # is a comment
+
+-- ITEM_NAME="..."
+	A description string for this item.
+	Shown on the bootmenu screen.
+
+-- ITEM_MODULES="..."
+	A list of kernel modules required to boot this item.
+	E.g. "omap_hsmmc mmc_core mmc_block ext3"
+
+-- ITEM_DEVICE="..."
+	The device name for the root partition.
+	Use ${EXT_CARD} to point to the external MMC,
+	and ${INT_CARD} for internal.
+	E.g. "${EXT_CARD}p2"
+
+-- ITEM_FSTYPE="..."
+	Filesystem type for the root fs.
+	Usually ext3. 
+	Also, you must have the fs module loaded.
+
+-- ITEM_FSOPTIONS="..."
+	Filesystem options for root fs.
+	Typically for ext3:
+		"rw,noatime,errors=remount-ro,commit=3"
+
+-- ITEM_INITRC=".."
+	Init program to execute when switching over to root.
+	Optional, has good defaults.
+
+-- ITEM_INITFS="..."
+	Locations where the Maemo root is moved after pivot.
+	Typically "initrd" or "mnt/initfs"
+ 	Defaults to "initrd"
+
+
+Also, bootmenu2 loads the kernel power configuration.
+
+	If file /etc/power.conf is present, it takes precedence.
+	If not, the defaults back to /etc/pmconfig.
+
+	Also, if booting an extern OS, the file <ROOT>/etc/power.conf
+	is checked first.
+
+
+
+Commands in the selection view:
+
+
+1..9	Boot the numbered item 	
+0	Boot default (Maemo)
+
+BS	Reboot
+X	Poweroff
+
+B	Fallback to use the original Maemo script to boot maemo
+
+S	Starts a shell
+
+
+
+
+
+Enjoy!
+
+Jay-C

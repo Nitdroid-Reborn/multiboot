@@ -1,0 +1,892 @@
+#!/bin/sh
+#
+# Maemo ULTimate BOOTloader
+#
+
+# Search path
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+# Timeout for the menu
+MAIN_TIMEOUT=30
+
+# Configuration directory
+CONFIG_D=/etc/multiboot.d
+
+# init searchlist
+INIT_SEARCH="sbin/preinit sbin/init bin/init init linuxrc"
+
+# modules.initrd searchlist
+MODULES_SEARCH="etc/modules.boot system/etc/modules.boot"
+
+# MMC Cards
+EXT_CARD="mmcblk0"
+INT_CARD="mmcblk1"
+
+# Predefined items
+ARRAY__NAME__0__="Maemo 5 (Default)"
+
+# Colours
+if [ -e /etc/INSIDE_QEMU ]
+then
+	BLACK=0x000000
+	WHITE=0xFFFFFF
+	BLUE=0x0000FF
+	RED=0xFF0000
+else
+	BLACK=0x0000
+	WHITE=0xFFFF
+	BLUE=0x001F
+	RED=0xF800
+fi
+
+
+################################################################################################
+#
+# UTILITY FUNCTIONS
+#
+################################################################################################
+
+
+safe_reboot()
+{
+	mount / -o ro,remount
+	sync
+	reboot -f
+}
+
+
+array()
+{
+	if [ -z "$3" ]
+	then
+		eval echo "\$ARRAY__${1}__${2}__"
+	else
+		eval ARRAY__$1__$2__="$3"
+	fi
+}
+
+
+get_key()
+{
+	evkey -u -t "$1" /dev/keypad
+}
+
+
+is_proc_mounted()
+{
+	test -f /proc/sys/kernel/version
+}
+
+
+is_sys_mounted()
+{
+	test -d /sys/devices/system/cpu
+}
+
+
+is_tmp_mounted()
+{
+	if is_proc_mounted
+	then
+		cat /proc/mounts | cut -d' ' -f 2 | egrep -q '^/tmp$'
+	else
+		return 1
+	fi
+}
+
+
+is_dev_mounted()
+{
+	if is_proc_mounted
+	then
+		cat /proc/mounts | cut -d' ' -f 2 | egrep -q '^/dev$'
+	else
+		return 1
+	fi
+}
+
+
+is_pts_mounted()
+{
+	if is_proc_mounted
+	then
+		cat /proc/mounts | cut -d' ' -f 2 | egrep -q '^/dev/pts$'
+	else
+		return 1
+	fi
+}
+
+
+get_misc_minor()
+{
+	local DEV="$1"
+	local a b c
+
+	if is_proc_mounted
+	then
+		cat /proc/misc | grep -F $DEV | while read a b c
+		do
+			echo $a
+		done
+	else
+		case $DEV in
+			watchdog)	echo 130 ;;
+			twl4030_wdt)	echo 142 ;;
+			twl4030-adc)	echo 58  ;;
+			*)		echo 0   ;;
+		esac
+	fi
+}
+
+
+wait_root_device()
+{
+	local dev=$1
+	local wait=$2
+
+	while [ $wait -gt 0 ]
+	do
+		if grep -q $dev /proc/partitions
+		then
+			if [ -b /dev/$dev ]
+			then
+				return 0
+			else
+				return 1
+			fi
+		fi
+
+		wait=$(expr $wait - 1)
+		sleep 1
+	done
+
+	return 1
+}
+
+
+load_kernel_modules()
+{
+	local ROOT="$1"
+	local FILE=""
+
+	local file module
+
+	for file in ${MODULES_SEARCH}
+	do
+		if [ -e $ROOT/$file ]
+		then
+			FILE="$ROOT/$file"
+			break
+		fi
+	done
+
+	if [ -e "${FILE}" ]
+	then
+		cat ${FILE} | egrep -v '^#' | while read module
+		do
+			if [ -n "${module}" ]
+			then
+				echo "Loading module ${module}"
+				modprobe -i -q ${module}
+			fi
+		done
+	fi
+}
+
+
+load_modules()
+{
+	local module
+	
+	for module
+	do
+		echo "Loading module $module"
+		modprobe -i -q $module
+	done
+}
+
+
+load_pmconfig()
+{
+	local FILE=$1/etc/power.conf
+
+	if [ -e $FILE ]
+	then
+		echo "Loading kernel power configuration from $FILE"
+		powerconfig $FILE
+	fi
+}
+
+
+read_config()
+{
+	local n=1
+
+	ITEM_LIST="0"
+
+	for file in ${CONFIG_D}/*.item
+	do
+		if [ -e "$file" ]
+		then
+			eval $( /sbin/multiboot_read_item FN=$n $file )
+
+			ITEM_LIST="${ITEM_LIST} $n"
+			n=$(expr $n + 1)
+
+			if [ $n -gt 9 ]
+			then
+				return 
+			fi
+		fi
+	done
+}
+
+
+load_config()
+{
+	local file="$2"
+	local n="$1"
+
+	if [ -f "$file" ]
+	then
+		eval $( /sbin/multiboot_read_item FN=$n $file )
+	fi
+}
+
+
+store_config()
+{
+	local file="$2"
+	local n="$1"
+
+	local LOOPS=$( array LOOPS $n )
+
+	case $LOOPS in
+	  [0-9])  LOOPS=$( expr $LOOPS + 1 ) ;;
+	  *)      LOOPS=0 ;;
+	esac
+
+	echo "ITEM_ID=\"$( array ID $n )\""              > $file
+	echo "ITEM_NAME=\"$( array NAME $n )\""         >> $file
+	echo "ITEM_KERNEL=\"$( array KERNEL $n )\""     >> $file
+	echo "ITEM_MODULES=\"$( array MODULES $n )\""   >> $file
+	echo "ITEM_PARAMS=\"$( array PARAMS $n )\""     >> $file
+	echo "ITEM_DEVICE=\"$( array FS_ROOT $n )\""    >> $file
+	echo "ITEM_FSTYPE=\"$( array FS_TYPE $n )\""    >> $file
+	echo "ITEM_FSOPTIONS=\"$( array FS_OPTS $n )\"" >> $file
+	echo "ITEM_LINUXRC=\"$( array INITRC $n )\""    >> $file
+	echo "ITEM_INITFS=\"$( array INITFS $n )\""     >> $file
+	echo "ITEM_LOOPS=\"$LOOPS\""                    >> $file
+}
+
+
+flash_kernel()
+{
+	ifconfig lo 127.0.0.1 netmask 255.0.0.0 up
+
+	softupd --local --verbose --stdout --standalone &
+	flasher --local -f -k $1
+
+	ifconfig lo down
+}
+
+
+swap_kernel()
+{
+	local n="$1"
+
+	local KERNEL=$( array KERNEL $n )
+
+	if [ -f /boot/vmlinuz-$KERNEL -a -d /lib/modules/$KERNEL ]
+	then
+		flash_kernel /boot/vmlinuz-$KERNEL
+		store_config $n /.multiboot.item
+		safe_reboot
+	fi
+}
+
+
+
+################################################################################################
+#
+# SCREEN FUNCTIONS
+#
+################################################################################################
+
+wait_keypress()
+{
+	local t
+
+	t=$MAIN_TIMEOUT
+
+	while [ $t -gt 0 ]
+	do
+		text2screen -t "[$t] " -s 2 -x 700 -y 108 -B ${BLACK} -T ${WHITE}
+
+		if ! get_key 1000
+		then
+			return 0
+		fi
+		
+		t=$(expr $t - 1)
+	done
+
+	echo "D"
+
+	return 1
+}
+
+
+init_screen()
+{
+	echo -e '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'
+	echo -e '\r---------------------------------------------------------------------------------------------------\r'
+}
+
+
+clear_screen()
+{
+	text2screen -c -x 0 -y 0 -w 800 -h 480 -B ${BLACK}
+}
+
+
+wait_screen()
+{
+	local n=$1
+
+        text2screen -c -x 0 -y 0   -w 790 -h 464 -B ${WHITE}
+	text2screen -c -x 0 -y 100 -w 790 -h 30  -B ${BLACK}
+	text2screen -c -x 0 -y 464 -w 800 -h 16  -B ${BLACK}
+	text2screen -c -x 790 -y 0 -w 10 -h 480  -B ${BLACK}
+
+	text2screen -t "$(array NAME $n)" -s 3 -x 40 -y 40 -T ${BLUE} -B ${WHITE}
+	text2screen -t "BOOTING - PLEASE WAIT" -s 2 -x 40 -y 108 -T ${WHITE} -B ${BLACK}
+
+	text2screen -t "Kernel  : $(array KERNEL $n)"  -s 2 -x 20 -y 160 -T ${BLACK} -B ${WHITE}
+	text2screen -t "Params  : $(array PARAMS $n)"  -s 2 -x 20 -y 180 -T ${BLACK} -B ${WHITE}
+	text2screen -t "Modules : $(array MODULES $n)" -s 2 -x 20 -y 200 -T ${BLACK} -B ${WHITE}
+	text2screen -t "Device  : $(array FS_ROOT $n)" -s 2 -x 20 -y 220 -T ${BLACK} -B ${WHITE}
+	text2screen -t "FS type : $(array FS_TYPE $n)" -s 2 -x 20 -y 240 -T ${BLACK} -B ${WHITE}
+	text2screen -t "FS opts : $(array FS_OPTS $n)" -s 2 -x 20 -y 260 -T ${BLACK} -B ${WHITE}
+	text2screen -t "linuxrc : $(array INITRC $n)" -s 2 -x 20 -y 280 -T ${BLACK} -B ${WHITE}
+	text2screen -t "initfs  : $(array INITFS $n)" -s 2 -x 20 -y 300 -T ${BLACK} -B ${WHITE}
+}
+
+
+print_menu()
+{
+	local x y n
+
+        text2screen -c -x 0 -y 0   -w 790 -h 464 -B ${WHITE}
+	text2screen -c -x 0 -y 100 -w 790 -h 30  -B ${BLACK}
+	text2screen -c -x 0 -y 464 -w 800 -h 16  -B ${BLACK}
+	text2screen -c -x 790 -y 0 -w 10 -h 480  -B ${BLACK}
+
+	text2screen -t "NOKIA N900 - MULTIBOOT" -s 3 -x 40 -y 40 -T ${BLUE} -B ${WHITE}
+	text2screen -t "Press a key to select" -s 2 -x 40 -y 108 -T ${WHITE} -B ${BLACK}
+
+	x=60
+	y=160
+
+	for n in ${ITEM_LIST}
+	do
+		text2screen -t "$n - $(array NAME $n)" -x $x -y $y -T ${BLACK} -B ${WHITE} -s 2
+		y=$(expr $y + 22)
+	done
+}
+
+
+
+################################################################################################
+#
+# BOOTING FUNCTIONS
+#
+################################################################################################
+
+init_hw()
+{
+	# Kernel modules
+	load_modules watchdog twl4030_wdt
+	load_modules omap_hsmmc mmc_core mmc_block
+	load_modules twl4030-madc
+}
+
+
+init_pm()
+{
+	## Default values for Maemo
+	
+	echo 1  > /sys/power/enable_off_mode
+	echo 1  > /sys/power/sleep_while_idle
+	echo 0  > /sys/power/sr_vdd1_autocomp
+	echo 0  > /sys/power/sr_vdd2_autocomp
+	echo 1  > /sys/power/clocks_off_while_idle
+	echo 1  > /sys/power/voltage_off_while_idle
+
+	echo ondemand  > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+	echo 600000    > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+	echo 250000    > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq
+
+	echo 600000    > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed
+}
+
+
+init_fs()
+{
+	# Mount point for new root
+	test -d /mnt || mkdir -m 0700 /mnt
+
+	# Mount pseudo filesystems
+	is_proc_mounted || mount -t proc  none /proc
+	is_sys_mounted  || mount -t sysfs none /sys
+        is_dev_mounted  || mount -t tmpfs none -o size=128K /dev
+        is_tmp_mounted  || mount -t tmpfs none -o size=512K /tmp
+
+	# Mount for pts
+	if ! is_pts_mounted
+	then
+		mkdir /dev/pts
+##		mount -t devpts devpts /dev/pts -o gid=5,mode=0620
+	fi
+
+	# Dev nodes
+        mknod /dev/mem  c 1 1
+        mknod /dev/null c 1 3
+        mknod /dev/zero c 1 5
+        mknod /dev/kmem c 1 2
+        mknod /dev/kmsg c 1 11
+
+        mknod /dev/mtd0 c 90 0
+        mknod /dev/mtd1 c 90 2
+        mknod /dev/mtd2 c 90 4
+        mknod /dev/mtd3 c 90 6
+        mknod /dev/mtd4 c 90 8
+        mknod /dev/mtd5 c 90 10
+
+	mknod /dev/mmcblk0   b 179 0
+	mknod /dev/mmcblk0p1 b 179 1
+	mknod /dev/mmcblk0p2 b 179 2
+	mknod /dev/mmcblk0p3 b 179 3
+	mknod /dev/mmcblk0p4 b 179 4
+	mknod /dev/mmcblk0p5 b 179 5
+	mknod /dev/mmcblk0p6 b 179 6
+	mknod /dev/mmcblk0p7 b 179 7
+
+	mknod /dev/mmcblk1   b 179 8
+	mknod /dev/mmcblk1p1 b 179 9
+	mknod /dev/mmcblk1p2 b 179 10
+	mknod /dev/mmcblk1p3 b 179 11
+	mknod /dev/mmcblk1p4 b 179 12
+	mknod /dev/mmcblk1p5 b 179 13
+	mknod /dev/mmcblk1p6 b 179 14
+	mknod /dev/mmcblk1p7 b 179 15
+
+        mknod /dev/i2c-1 c 89 1
+        mknod /dev/i2c-2 c 89 2
+        mknod /dev/i2c-3 c 89 3
+
+        mknod /dev/console c 5 1
+	mknod /dev/keypad c 13 65
+
+	mknod /dev/fb0 c 29 0
+	mknod /dev/fb1 c 29 1
+	mknod /dev/fb2 c 29 2
+
+        mknod /dev/watchdog     c 10 $(get_misc_minor watchdog)
+        mknod /dev/twl4030_wdt  c 10 $(get_misc_minor twl4030_wdt)
+        mknod /dev/twl4030-adc  c 10 $(get_misc_minor twl4030-adc)
+        mknod /dev/twl4030-madc c 10 $(get_misc_minor twl4030-adc)
+
+	mkdir -m 0755 /dev/shm
+
+        ln -s /proc/self/fd   /dev/fd
+        ln -s /proc/self/fd/0 /dev/stdin
+        ln -s /proc/self/fd/1 /dev/stdout
+        ln -s /proc/self/fd/2 /dev/stderr
+
+	# Current link in modules
+	ln -s -f $(uname -r) /lib/modules/current
+
+	# Depmod
+	depmod -A $(uname -r)
+}
+
+
+done_fs()
+{
+	# Unmount filesystems
+	is_pts_mounted     && umount /dev/pts
+	is_dev_mounted     && umount /dev
+	is_tmp_mounted     && umount /tmp
+	is_sys_mounted     && umount /sys
+	is_proc_mounted    && umount /proc
+
+	# All written to disks
+	sync
+}
+
+
+mount_root()
+{
+	local n=$1
+
+	local FS_ROOT=$(array FS_ROOT $n)
+	local FS_TYPE=$(array FS_TYPE $n)
+	local FS_OPTS=$(array FS_OPTS $n)
+	local MODULES=$(array MODULES $n)
+
+	local OPTS=""
+
+	if [ -n "$FS_TYPE" ]
+	then
+		OPTS="${OPTS} -t $FS_TYPE"
+	fi
+
+	if [ -n "$FS_OPTS" ]
+	then
+		OPTS="${OPTS} -o $FS_OPTS"
+	fi
+
+	if [ -n "$MODULES" ]
+	then
+		load_modules $MODULES
+	fi
+
+	if wait_root_device "$FS_ROOT" 10
+	then
+		if mount $OPTS /dev/$FS_ROOT /mnt
+		then
+			echo "Mount OK:"
+			cat /proc/mounts | grep $FS_ROOT
+			return 0
+		else
+			echo "Mount failed."
+			return 1
+		fi
+	else
+		echo "Root device not available"
+		return 1
+	fi
+
+	return 0
+}
+
+
+umount_root()
+{
+	local FS_ROOT=$(array FS_ROOT $1)
+
+	umount "$FS_ROOT"
+}
+
+
+prepare_root()
+{
+	local ROOT="$1"
+	local INITFS="$2"
+
+	# Must have initfs mount point
+	test -d ${ROOT}/${INITFS} || mkdir -m 0755 ${ROOT}/${INITFS}
+
+	# Not booting Maemo
+	if [ "${ROOT}" != "/" ]
+	then
+		# Current link in modules 
+		ln -s -f $(uname -r) ${ROOT}/lib/modules/current
+
+		# Depencies
+		depmod -b ${ROOT} -A $(uname -r)
+	fi
+}
+
+
+boot_maemo()
+{
+	# Load all kernel modules
+	load_kernel_modules
+
+	# Limits
+	ulimit -c unlimited
+	ulimit -l unlimited
+
+	# HW Settings	
+	echo active  > /sys/devices/platform/gpio-switch/cmt_bsi/state
+	echo 10  > /sys/devices/platform/serial8250.0/sleep_timeout
+
+	# Get bootstate
+	BOOT_STATE=$(getbootstate)
+
+	# init RUNLEVEL
+	case ${BOOT_STATE} in 
+		BOOT)		INITLEVEL=6  ;;
+		USER|FLASH)	INITLEVEL=2  ;;
+		ACT_DEAD)	INITLEVEL=5  ;;
+		LOCAL|TEST)	INITLEVEL=3  ;;
+		SHUTDOWN)	INITLEVEL=0  ;;
+	        *) 		INITLEVEL=2  ;;
+	esac
+
+	# let me see then, what thereat is and this mistery explore
+##	fiasco-do-update
+
+	# Done with filesystems
+	done_fs
+
+	# Start init
+	exec /sbin/init ${INITLEVEL}
+
+	# Fallback
+	safe_reboot
+}
+
+
+boot_script()
+{
+	# Clear screen
+	clear_screen
+
+	# Done with filesystems
+	done_fs
+
+	# Start the script
+	exec "$@"
+
+	# Fallback
+	safe_reboot
+}
+
+
+boot_chroot()
+{
+	local n=$1
+
+	local INITRC=$(array INITRC $n)
+	local INITFS=$(array INITFS $n)
+
+	# No initfs defined
+	if [ -z "${INITFS}" ]
+	then
+		INITFS="initrd"
+	else
+		INITFS=${INITFS##/}
+	fi
+
+	# Mount new root filesystem
+	if mount_root $n
+	then
+		# Prepare root filesystem
+		prepare_root /mnt ${INITFS}
+
+		# Load all kernel modules
+		load_kernel_modules /mnt
+
+		# PM configuration
+		load_pmconfig /mnt
+
+		# Done with extra filesystems
+		done_fs
+
+		# New root location
+		cd /mnt || return 1
+
+		# Change root
+		pivot_root . ${INITFS}
+
+		# Switch over
+		for file in ${INITRC} ${INIT_SEARCH}
+		do
+			if [ -x ${file} ]
+			then
+				echo "Switching over to ${file}"
+				exec chroot . ${file}
+			fi
+		done
+	fi
+}
+
+
+boot_kexec()
+{
+	local n=$1
+	
+	local KERNEL=$(array KERNEL $n)
+	local PARAMS=$(array PARAMS $n)
+	local ROOT=$(array FS_ROOT $n)
+	local CMDLINE
+	local PREFIX="/"
+
+	# New root FS needed
+	if [ -n "$ROOT" ]
+	then
+		if mount_root $n
+		then
+			PREFIX="/mnt"
+		else
+			return 1
+		fi
+	fi
+
+	# Command line
+	if [ -n "${PARAMS}" ]
+	then
+		CMDLINE="${PARAMS}"
+	else
+		CMDLINE="$(cat /proc/cmdline)"
+	fi
+
+	echo "*** Booting [${PREFIX}]${KERNEL} ${CMDLINE}"
+
+	if [ -e "${PREFIX}${KERNEL}" ]
+	then
+		# Load new kernel
+		kexec -l "${PREFIX}${KERNEL}" --command-line="${CMDLINE}"
+
+		# Say something
+		echo "*** Booting now..."
+
+		# Done with FS access
+		##done_fs
+		sync
+
+		# Start the kernel
+		exec kexec -f -e			
+	else
+		echo "Kernel ${KERNEL} not found."
+	fi
+
+	return 1
+}
+
+
+boot_item()
+{
+	local n=$1
+
+	local KERNEL=$(array KERNEL $n)
+	local LOOPS=$(array LOOPS $n)
+	local ROOT=$(array FS_ROOT $n)
+
+	rm -f /.multiboot.item
+
+	if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
+	then
+		if [ -z "$ROOT" ]
+		then
+			boot_maemo $n
+		else
+			boot_chroot $n
+		fi
+	else
+		case "$LOOPS" in
+		    [012])  swap_kernel $n    ;;
+		       "")  swap_kernel $n    ;;
+		        *)  boot_maemo 0      ;;
+		esac
+	fi
+
+	safe_reboot
+}
+
+
+boot_shell()
+{
+	clear_screen
+
+	echo -e "\n\nEntering a root shell.\nType 'exit' to leave."
+
+	if [ -x /sbin/getty ]
+	then
+		/sbin/getty 115200 console -n -l /bin/sh
+	else
+		/bin/sh
+	fi
+
+	echo -e "\nRebooting...\n\n"
+
+	sleep 3
+
+	safe_reboot
+}
+
+
+main()
+{
+	local n
+
+	init_hw
+	init_fs
+	init_pm
+
+	if [ -f "/.multiboot.item" ]
+	then
+		load_config 1 "/.multiboot.item"
+		boot_item 1
+	fi
+
+	# Check keyboard slide state - closed = default boot
+	if [ "$(cat /sys/devices/platform/gpio-switch/slide/state)" != "open" ]
+	then
+		boot_item 0
+	fi
+
+	init_screen
+	read_config
+	
+	while :
+	do
+		print_menu
+		
+		n=$(wait_keypress)
+	
+		echo -e -n '\r'
+
+		case $n in
+
+			# Timeout
+			D)   n="0" ;;
+
+			# Enter
+		        28)  n="0" ;;
+
+			# 0-9
+			16)  n="1" ;;
+			17)  n="2" ;;
+			18)  n="3" ;;
+			19)  n="4" ;;
+			20)  n="5" ;;
+			21)  n="6" ;;
+			22)  n="7" ;;
+			23)  n="8" ;;
+			24)  n="9" ;;
+			25)  n="0" ;;
+		        
+			# S - shell
+			31)  boot_shell ;;
+
+		        # Backscape - reboot
+		        14)  reboot -f  ;;
+
+			# X - poweroff
+                        45)  poweroff -f  ;;
+
+		        # B - Fallback if everything else fails
+		        48)  boot_script /sbin/preinit_real  ;;
+		    
+			# D -  Debugging another script
+			32)  boot_script /sbin/multiboot_debug  ;;
+
+		esac
+
+		if [ -n "$(array NAME $n)" ]
+		then
+			wait_screen $n
+			boot_item $n
+		fi
+	done
+}
+
+
+main
+
+# End
+

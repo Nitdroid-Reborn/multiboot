@@ -1,0 +1,18 @@
+#!/usr/bin/awk -f
+	/enable_off_mode/	{ print $2 > "/sys/power/enable_off_mode" }
+	/sleep_while_idle/	{ print $2 > "/sys/power/sleep_while_idle" }
+	/sr_vdd1_autocomp/	{ print $2 > "/sys/power/sr_vdd1_autocomp" }
+	/sr_vdd2_autocomp/	{ print $2 > "/sys/power/sr_vdd2_autocomp" }
+	/clocks_off_while_idle/	{ print $2 > "/sys/power/clocks_off_while_idle" }
+	/voltage_off_while_idle/{ print $2 > "/sys/power/voltage_off_while_idle" }
+	/scaling_governor/	{ print $2 > "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor" }
+	/scaling_max_freq/	{ print $2 > "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq" }
+	/scaling_min_freq/	{ print $2 > "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq" }
+	/up_threshold/		{ print $2 > "/sys/devices/system/cpu/cpu0/cpufreq/ondemand/up_threshold" }
+	/sampling_rate/		{ print $2 > "/sys/devices/system/cpu/cpu0/cpufreq/ondemand/sampling_rate" }
+	/dsp_opps_rate/		{ print $2 " " $3 " " $4 " " $5 " " $6 " " $7 " " $8 " " $9 " " $10 " " $11 " " $12 " " $13 " " $14 " " $15 " " $16 > "/sys/power/dsp_opps_rate" }
+	/vdd1_opps_vsel/	{ print $2 " " $3 " " $4 " " $5 " " $6 " " $7 " " $8 " " $9 " " $10 " " $11 " " $12 " " $13 " " $14 " " $15 " " $16 > "/sys/power/vdd1_opps_vsel" }
+	/smartreflex_vdd1/	{ print $2 > "/sys/power/sr_vdd1_autocomp" }
+	/smartreflex_vdd2/	{ print $2 > "/sys/power/sr_vdd2_autocomp" }
+	/avoid_frequencies/	{ print $2 " " $3 " " $4 " " $5 " " $6 " " $7 " " $8 " " $9 " " $10 " " $11 " " $12 " " $13 " " $14 " " $15 " " $16 > "/sys/devices/system/cpu/cpu0/cpufreq/ondemand/avoid_frequencies" }
+
