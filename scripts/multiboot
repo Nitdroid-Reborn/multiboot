@@ -411,6 +411,13 @@ init_hw()
 	load_modules twl4030-madc
 }
 
+init_backlight()
+{
+	load_modules led-class leds-lp5523
+	for i in 1 2 3 4 5 6 ; do
+		echo 208 > /sys/class/leds/lp5523:kb${i}/brightness ;
+	done
+}
 
 init_pm()
 {
@@ -831,6 +838,7 @@ main()
 
 	init_screen
 	read_config
+	init_backlight
 	
 	while :
 	do
