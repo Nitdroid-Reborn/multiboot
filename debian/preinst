@@ -1,0 +1,30 @@
+#!/bin/sh
+
+prepare()
+{
+	if [ ! -e /sbin/preinit_orig ]
+	then
+		if [ -f /sbin/preinit ]
+		then
+			cp /sbin/preinit /sbin/preinit_orig
+		fi
+	fi
+}
+
+
+case "$1" in
+
+    install|upgrade)
+	prepare
+        ;;
+	
+    abort-upgrade)
+        ;;
+		
+    *)
+	echo "preinst called with unknown argument $1" >&2
+	exit 1
+	;;
+
+esac
+					

@@ -1,6 +1,0 @@
-ITEM_NAME="NITdroid on MMCp2 - 2.6.28.NIT.02"
-ITEM_KERNEL=2.6.28.NIT.02
-ITEM_MODULES=ext3
-ITEM_DEVICE=${EXT_CARD}p2
-ITEM_FSTYPE=ext3
-ITEM_FSOPTIONS=rw,noatime,errors=remount-ro,commit=3

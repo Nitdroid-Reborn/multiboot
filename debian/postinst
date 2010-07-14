@@ -1,0 +1,45 @@
+#!/bin/sh
+
+configure()
+{
+	if [ -e /sbin/multiboot ]
+	then
+		if [ -e /sbin/preinit ]
+		then
+			rm /sbin/preinit 
+		fi
+	
+		ln -s multiboot /sbin/preinit
+	fi
+
+	if [ ! -e /sbin/preinit ]
+	then
+		if [ -e /sbin/preinit_orig ]
+		then
+			cp /sbin/preinit_orig /sbin/preinit
+		else
+			ln -s init /sbin/preinit
+		fi
+	fi
+
+	chmod 0755 /sbin/multiboot
+	chmod 0755 /sbin/preinit
+}
+
+
+
+case "$1" in
+
+    configure)
+	configure
+	;;
+	
+    abort-upgrade|abort-remove|abort-deconfigure)
+	;;
+		
+    *)
+	echo "postinst called with unknown argument $1" >&2
+	exit 1
+	;;
+esac
+					

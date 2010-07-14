@@ -1,0 +1,41 @@
+#!/bin/sh
+
+prepare()
+{
+	if [ -L /sbin/preinit ]
+	then
+		rm /sbin/preinit
+	
+		if [ -e /sbin/preinit_orig ]
+		then
+			cp /sbin/preinit_orig /sbin/preinit
+		else
+			if [ -e /sbin/preinit_backup ]
+			then
+				cp /sbin/preinit_backup /sbin/preinit
+			else
+				ln -s init /sbin/preinit
+			fi
+		fi
+	fi
+	
+	chmod 0755 /sbin/preinit
+}
+
+
+case "$1" in
+
+    remove|upgrade|deconfigure)
+	prepare
+	;;
+	
+    failed-upgrade)
+	;;
+		
+    *)
+	echo "prerm called with unknown argument $1" >&2
+	exit 1
+	;;
+
+esac
+					

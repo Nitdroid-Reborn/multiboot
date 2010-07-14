@@ -18,6 +18,9 @@ INIT_SEARCH="sbin/preinit sbin/init bin/init init linuxrc"
 # modules.initrd searchlist
 MODULES_SEARCH="etc/modules.boot system/etc/modules.boot"
 
+# slide switch search list
+SLIDE_SEARCH="slide sw_lid kb_cover"
+
 # MMC Cards
 EXT_CARD="mmcblk0"
 INT_CARD="mmcblk1"
@@ -222,7 +225,7 @@ read_config()
 {
 	local n=1
 
-	ITEM_LIST="0"
+	ITEM_LIST=""
 
 	for file in ${CONFIG_D}/*.item
 	do
@@ -405,17 +408,17 @@ print_menu()
 
 init_hw()
 {
-	# Kernel modules
+	# Kernel modules required in bootup
 	load_modules watchdog twl4030_wdt
 	load_modules omap_hsmmc mmc_core mmc_block
 	load_modules twl4030-madc
+	load_modules led-class leds-lp5523
 }
 
 init_backlight()
 {
-	load_modules led-class leds-lp5523
 	for i in 1 2 3 4 5 6 ; do
-		echo 208 > /sys/class/leds/lp5523:kb${i}/brightness ;
+		echo 208 > /sys/class/leds/lp5523:kb${i}/brightness
 	done
 }
 
@@ -510,6 +513,16 @@ init_fs()
         ln -s /proc/self/fd/0 /dev/stdin
         ln -s /proc/self/fd/1 /dev/stdout
         ln -s /proc/self/fd/2 /dev/stderr
+
+	# Keyboard cover / slide switch
+	for name in ${SLIDE_SEARCH}
+	do
+		if [ -d /sys/devices/platform/gpio-switch/$name ]
+		then
+			SLIDE_SWITCH=/sys/devices/platform/gpio-switch/$name/state
+			break
+		fi
+	done
 
 	# Current link in modules
 	ln -s -f $(uname -r) /lib/modules/current
@@ -831,14 +844,14 @@ main()
 	fi
 
 	# Check keyboard slide state - closed = default boot
-	if [ "$(cat /sys/devices/platform/gpio-switch/slide/state)" != "open" ]
+	if [ "$( cat ${SLIDE_SWITCH} )" != "open" ]
 	then
 		boot_item 0
 	fi
 
 	init_screen
-	read_config
 	init_backlight
+	read_config
 	
 	while :
 	do

@@ -1,0 +1,112 @@
+
+Wellcome to multiboot
+~~~~~~~~~~~~~~~~~~~~~
+
+This is a completely rewritten second stage bootloader for Maemo 5.
+
+
+1.Configuration
+~~~~~~~~~~~~~~~
+
+The configuration files are in /etc/multiboot.d/
+
+Each file named <whatever>.item represents a bootable configuration,
+which can be selected from the bootup menu.
+
+
+1.1 .item file format
+~~~~~~~~~~~~~~~~~~~~~
+
+A line starting with # is a comment
+
+All other lines must be like the following:-
+
+ITEM_ID="..."
+	A short name for this configuration.
+	No spaces, no special characters, max 6 characters long.
+
+ITEM_NAME="..."
+	A description string for this configuration.
+	Shown on the bootmenu screen.
+
+ITEM_KERNEL="..."
+	Kernel version to run in this configuration.
+	If the running kernel is not correct, multiboot will reflash
+	the device and reboot automatically.
+
+ITEM_MODULES="..."
+	A list of kernel modules required to boot this configuration.
+	E.g. "ext2 ext3 fat vfat"
+
+ITEM_DEVICE="..."
+	Root partition device name.
+	Use ${EXT_CARD} to point to the external MMC,
+	and ${INT_CARD} for internal.
+	E.g. "${EXT_CARD}p2" for partition 2 in removable MMC.
+
+ITEM_FSTYPE="..."
+	Filesystem type for the root fs.
+	Usually ext2 or ext3. 
+	Also, you must have the fs module loaded.
+
+ITEM_FSOPTIONS="..."
+	Filesystem options for root fs. Typically,
+	  for ext2:
+		"rw,noatime,errors=remount-ro"
+	  for ext3:
+		"rw,noatime,errors=remount-ro,commit=3"
+	
+ITEM_INITRC="..."
+	Init program to execute when switching over to root.
+	Optional, default is to search the usual locations.
+	
+ITEM_INITFS="..."
+	Locations where the Maemo root fs is moved after pivot.
+	Typically "initrd" or "mnt/initfs"
+ 	Defaults to "initrd"
+
+
+1.2 Kernel power configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Multiboot also loads the kernel power configuration.
+
+The power configuration is defined in file /etc/power.conf
+in the _root_ filesystem of your configuration.
+
+If the config file does not exists, a sensible configuration is loaded.
+
+
+2.1 Menu Commands
+~~~~~~~~~~~~~~~~~
+
+Commands in the menu screen:
+
+1..9	Boot the numbered item, as defined in /etc/multiboot.d/*.item's
+
+0	Boot default (Maemo)
+	NOTE! this option just boots Maemo with the default kernel,
+	_without_ any options or extras. It's intented to be a fallback.
+	Also, this item can not be disabled or configured.
+
+BS	Reboot
+
+X	Poweroff
+
+B	Fallback to use the original Maemo script to boot maemo
+
+S	Starts a shell
+
+
+3. Uninstall
+~~~~~~~~~~~~~
+
+Remove the deb package.
+
+
+4. Who to thank
+~~~~~~~~~~~~~~~~
+
+This sw was written by Jay-C <jay.cartman@gmail.com>
+originally for the NITdroid port http://www.nitdroid.com/
+
