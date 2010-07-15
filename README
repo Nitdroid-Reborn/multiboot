@@ -1,12 +1,12 @@
 
-Wellcome to multiboot
-~~~~~~~~~~~~~~~~~~~~~
+Welcome to multiboot
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This is a completely rewritten second stage bootloader for Maemo 5.
 
 
 1.Configuration
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The configuration files are in /etc/multiboot.d/
 
@@ -14,8 +14,8 @@ Each file named <whatever>.item represents a bootable configuration,
 which can be selected from the bootup menu.
 
 
-1.1 .item file format
-~~~~~~~~~~~~~~~~~~~~~
+1.1 Item file format
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A line starting with # is a comment
 
@@ -67,7 +67,7 @@ ITEM_INITFS="..."
 
 
 1.2 Kernel power configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Multiboot also loads the kernel power configuration.
 
@@ -78,7 +78,7 @@ If the config file does not exists, a sensible configuration is loaded.
 
 
 2.1 Menu Commands
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Commands in the menu screen:
 
@@ -99,13 +99,13 @@ S	Starts a shell
 
 
 3. Uninstall
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Remove the deb package.
 
 
 4. Who to thank
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This sw was written by Jay-C <jay.cartman@gmail.com>
 originally for the NITdroid port http://www.nitdroid.com/

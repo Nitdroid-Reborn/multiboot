@@ -1,3 +1,11 @@
+multiboot (0.2.1) unstable; urgency=low
+
+  * Module overlay implemented. Will use modules from the target system
+    as soon as it is available. Source code for evkey added.
+    Kernel storage path changed to /boot/multiboot/.
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Thu, 15 Jul 2010 12:27:08 +0100
+
 multiboot (0.2.0) unstable; urgency=low
 
   * Initial Release.
