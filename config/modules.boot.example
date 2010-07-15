@@ -4,9 +4,86 @@
 # List of modules the bootloader (multiboot) shall load.
 #
 
+# Watchdogs
+omap_wdt
+twl4030_wdt
+
+# Real Time Clock
+#rtc-core
+#rtc-twl4030
+
+# Accl sensor
+lis302dl
+
+# Light sensor
+tsl2563
+
+# LEDs
+led-class
+leds-lp5523
+leds-twl4030-vibra
+
+# Battery
+power_supply
+
+# Nokia AV
+nokia-av
+
+# Touchscreen
+tsc2005 prescale=1
+
+# Phonet
+phonet
+pn_pep
+ssi_mcsaab_imp
+
 # Misc binary format
 binfmt_misc
 
-# Protocols
-#af_key
+# Network power control
+rfkill
+rfkill-input
+wl127x-rfkill
+
+# Wifi
+mac80211
+crc7
+
+# Bluetooth
+hidp
+rfcomm
+sco
+hci_h4p
+
+# OMAP DSP
+#bridgedriver
+#dspbridge
+
+# Camera subsystem
+#smia-sensor
+#omap34xxcam-mod
+#board-rx51-camera
+
+# OMAP iommu
+#omap3-iommu
+
+# power vr
+#pvrsrvkm.ko
+
+# fm transmitter
+#fmtx-si4713.ko
+
+# autofocus
+#ad5820.ko
+
+# torch
+#adp1653
+
+# Filesystems
+fat
+vfat
+msdos
+
+# USB gadgets
+g_nokia
 

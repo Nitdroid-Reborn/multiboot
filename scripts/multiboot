@@ -76,7 +76,7 @@ array()
 
 get_key()
 {
-	evkey -u -t "$1" /dev/keypad
+	evkey -u -t "$1" /dev/event1
 }
 
 
@@ -99,13 +99,19 @@ is_slide_open()
 		fi
 	done
 
-	state=$( evkey -s 0 /dev/gpio )
+	state=$( evkey -s 0 /dev/event2 )
 	if [ X$state = X1 ]
 	then 
-		return 0
+		return 1
 	fi
 
-	return 1
+	state=$( evkey -s 0 /dev/event3 )
+	if [ X$state = X1 ]
+	then 
+		return 1
+	fi
+
+	return 0
 }
 
 
@@ -547,9 +553,10 @@ init_fs()
         mknod /dev/i2c-2 c 89 2
         mknod /dev/i2c-3 c 89 3
 
-	mknod /dev/power  c 13 64
-	mknod /dev/keypad c 13 65
-	mknod /dev/gpio   c 13 66
+	mknod /dev/event0 c 13 64
+	mknod /dev/event1 c 13 65
+	mknod /dev/event2 c 13 66
+	mknod /dev/event3 c 13 67
 
         mknod /dev/console c 5 1
 
@@ -570,7 +577,7 @@ init_fs()
         ln -s /proc/self/fd/2 /dev/stderr
 
 	# Current link in modules
-	rm /lib/modules/current
+	rm -f /lib/modules/current
 	ln -s $(uname -r) /lib/modules/current
 
 	# Depmod
@@ -656,7 +663,7 @@ prepare_root()
 	test -d ${ROOT}/${INITFS} || mkdir -m 0755 ${ROOT}/${INITFS}
 
 	# Current link in modules
-	rm ${ROOT}/lib/modules/current
+	rm -f ${ROOT}/lib/modules/current
 	ln -s $(uname -r) ${ROOT}/lib/modules/current
 
 	# Modules overlay
@@ -834,7 +841,7 @@ boot_item()
 
 	store_config $n ${BOOT_ITEM}
 
-	rm ${BOOT_FAST}
+	rm -f ${BOOT_FAST}
 	
 	if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
 	then
