@@ -1,3 +1,11 @@
+multiboot (0.2.2) unstable; urgency=low
+
+  * Boot previous item if slide is closed.
+    Get slide state also from switch events.
+    Clear bootstate for Maemo.
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Thu, 15 Jul 2010 17:57:47 +0100
+
 multiboot (0.2.1) unstable; urgency=low
 
   * Module overlay implemented. Will use modules from the target system

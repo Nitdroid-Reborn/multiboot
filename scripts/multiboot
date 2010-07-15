@@ -21,12 +21,16 @@ MODULES_SEARCH="lib/modules/current/modules.boot etc/modules.boot"
 # slide switch search list
 SLIDE_SEARCH="slide sw_lid kb_cover"
 
+# Boot files
+BOOT_ITEM="/.multiboot.item"
+BOOT_FAST="./multiboot.fast"
+
 # MMC Cards
 EXT_CARD="mmcblk0"
 INT_CARD="mmcblk1"
 
 # Predefined items
-ARRAY__NAME__0__="Maemo 5 (Default)"
+ARRAY__NAME__0__="Maemo (default)"
 
 # Colours
 if [ -e /etc/INSIDE_QEMU ]
@@ -52,6 +56,7 @@ fi
 
 safe_reboot()
 {
+	echo -n "USER" > /var/lib/dsme/saved_state
 	mount / -o ro,remount
 	sync
 	reboot -f
@@ -72,6 +77,41 @@ array()
 get_key()
 {
 	evkey -u -t "$1" /dev/keypad
+}
+
+
+is_slide_open()
+{
+	local name
+	local state
+	
+	for name in ${SLIDE_SEARCH}
+	do
+		if [ -d /sys/devices/platform/gpio-switch/$name ]
+		then
+			state=/sys/devices/platform/gpio-switch/$name/state
+			if [ X$( cat $state ) = Xopen ]
+			then
+				return 0
+			else
+				return 1
+			fi
+		fi
+	done
+
+	state=$( evkey -s 0 /dev/gpio )
+	if [ X$state = X1 ]
+	then 
+		return 0
+	fi
+
+	return 1
+}
+
+
+is_fast_boot()
+{
+	test -f ${BOOT_FAST} -a -f ${BOOT_ITEM}
 }
 
 
@@ -282,13 +322,6 @@ store_config()
 	local file="$2"
 	local n="$1"
 
-	local LOOPS=$( array LOOPS $n )
-
-	case $LOOPS in
-	  [0-9])  LOOPS=$( expr $LOOPS + 1 ) ;;
-	  *)      LOOPS=0 ;;
-	esac
-
 	echo "ITEM_ID=\"$( array ID $n )\""              > $file
 	echo "ITEM_NAME=\"$( array NAME $n )\""         >> $file
 	echo "ITEM_KERNEL=\"$( array KERNEL $n )\""     >> $file
@@ -299,7 +332,6 @@ store_config()
 	echo "ITEM_FSOPTIONS=\"$( array FS_OPTS $n )\"" >> $file
 	echo "ITEM_LINUXRC=\"$( array INITRC $n )\""    >> $file
 	echo "ITEM_INITFS=\"$( array INITFS $n )\""     >> $file
-	echo "ITEM_LOOPS=\"$LOOPS\""                    >> $file
 }
 
 
@@ -322,8 +354,8 @@ swap_kernel()
 
 	if [ -f /boot/multiboot/vmlinuz-$KERNEL -a -d /lib/modules/$KERNEL ]
 	then
+		echo 1 > ${BOOT_FAST}
 		flash_kernel "/boot/multiboot/vmlinuz-$KERNEL"
-		store_config $n /.multiboot.item
 		safe_reboot
 	fi
 }
@@ -515,8 +547,11 @@ init_fs()
         mknod /dev/i2c-2 c 89 2
         mknod /dev/i2c-3 c 89 3
 
-        mknod /dev/console c 5 1
+	mknod /dev/power  c 13 64
 	mknod /dev/keypad c 13 65
+	mknod /dev/gpio   c 13 66
+
+        mknod /dev/console c 5 1
 
 	mknod /dev/fb0 c 29 0
 	mknod /dev/fb1 c 29 1
@@ -533,16 +568,6 @@ init_fs()
         ln -s /proc/self/fd/0 /dev/stdin
         ln -s /proc/self/fd/1 /dev/stdout
         ln -s /proc/self/fd/2 /dev/stderr
-
-	# Keyboard cover / slide switch
-	for name in ${SLIDE_SEARCH}
-	do
-		if [ -d /sys/devices/platform/gpio-switch/$name ]
-		then
-			SLIDE_SWITCH=/sys/devices/platform/gpio-switch/$name/state
-			break
-		fi
-	done
 
 	# Current link in modules
 	rm /lib/modules/current
@@ -805,11 +830,12 @@ boot_item()
 	local n=$1
 
 	local KERNEL=$(array KERNEL $n)
-	local LOOPS=$(array LOOPS $n)
 	local ROOT=$(array FS_ROOT $n)
 
-	rm -f /.multiboot.item
+	store_config $n ${BOOT_ITEM}
 
+	rm ${BOOT_FAST}
+	
 	if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
 	then
 		if [ -z "$ROOT" ]
@@ -819,11 +845,7 @@ boot_item()
 			boot_chroot $n
 		fi
 	else
-		case "$LOOPS" in
-		    [012])  swap_kernel $n    ;;
-		       "")  swap_kernel $n    ;;
-		        *)  boot_maemo 0      ;;
-		esac
+		swap_kernel $n
 	fi
 
 	safe_reboot
@@ -853,22 +875,19 @@ boot_shell()
 
 main()
 {
-	local n
+	local n i
 
 	init_hw
 	init_fs
 	init_pm
 
-	if [ -f "/.multiboot.item" ]
+	if is_fast_boot || ! is_slide_open
 	then
-		load_config 1 "/.multiboot.item"
-		boot_item 1
-	fi
-
-	# Check keyboard slide state - closed = default boot
-	if [ "$( cat ${SLIDE_SWITCH} )" != "open" ]
-	then
-		boot_item 0
+		if [ -f ${BOOT_ITEM} ]
+		then
+			load_config 1 ${BOOT_ITEM}
+			boot_item 1
+		fi
 	fi
 
 	init_screen

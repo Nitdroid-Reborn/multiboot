@@ -37,12 +37,53 @@
 #define WAIT_UP    0
 
 static int fd;
+static int key;
 static int command;
 static int timeout;
 
 
+static int
+key_check( int key )
+{
+  unsigned char keys[KEY_MAX / 8 + 1];
+  int state;
+
+  if ( key > KEY_MAX )
+    return 1;
+
+  memset(keys,0,sizeof(keys));
+  ioctl(fd, EVIOCGKEY(sizeof(keys)), keys);
+
+  state = ( keys[ key >> 3 ] & (1<<(key&7)) ) ? 1 : 0;
+
+  printf("%d\n", state);
+
+  return 0;
+}
+
+
+static int
+sw_check( int key )
+{
+  unsigned char keys[SW_MAX / 8 + 1];
+  int state;
+
+  if ( key > SW_MAX )
+    return 1;
+
+  memset(keys,0,sizeof(keys));
+  ioctl(fd, EVIOCGSW(sizeof(keys)), keys);
+
+  state = ( keys[ key >> 3 ] & (1<<(key&7)) ) ? 1 : 0;
+
+  printf("%d\n", state);
+
+  return 0;
+}
+
+
 static int 
-keywait( int down )
+key_wait( int down )
 {
   struct pollfd inpollfd;
   struct input_event ev;
@@ -83,28 +124,30 @@ keywait( int down )
 static void 
 usage()
 {
-  printf("usage: evkey <-u|-d> <-t timeout> eventdevice\n");
+  printf("usage: evkey <-u|-d|-k key|-s sw> <-t timeout> eventdevice\n");
 }
 
 
 int
 main ( int argc, char *argv[] )
 {
-  int morethanone=0;
   int c;
   
-  while ( (c = getopt(argc, argv, "dut:h")) != -1 )
+  while ( (c = getopt(argc, argv, "dut:s:k:h")) != -1 )
   {
     switch (c)
     {
       case 'd':
       case 'u':
-	if (!command) 
-	  command = c;
-	else
-	  morethanone = c;
+	command = c;
 	break;
-	
+
+      case 's':
+      case 'k':
+	command = c;
+	key = atoi(optarg);
+	break;
+
       case 't':
 	timeout = atoi(optarg);
 	break;
@@ -121,18 +164,12 @@ main ( int argc, char *argv[] )
   
   if (!timeout) 
   {
-    timeout=100;
+    timeout = 100;
   }
   
   if (!command)
   {
-    fprintf(stderr,"one of u,d options is needed\n");
-    exit(-1);
-  }
-  
-  if (morethanone)
-  {
-    fprintf(stderr,"only one of u,d options is allowed\n");
+    fprintf(stderr,"one of u,d,k,s options is needed\n");
     exit(-1);
   }
   
@@ -145,15 +182,22 @@ main ( int argc, char *argv[] )
   if ( (fd = open (argv[optind], O_RDONLY)) < 0 )
   {
     perror("evdev open");
+    exit(-1);
   }
   
   switch (command)
   {
     case 'd':
-      return keywait(WAIT_DOWN);
+      return key_wait(WAIT_DOWN);
       break;
     case 'u':
-      return keywait(WAIT_UP);
+      return key_wait(WAIT_UP);
+      break;
+    case 'k':
+      return key_check(key);
+      break;
+    case 's':
+      return sw_check(key);
       break;
   }
   

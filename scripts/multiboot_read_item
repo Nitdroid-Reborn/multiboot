@@ -60,9 +60,3 @@
 				gsub(/"/, "", str); 
 				printf("ARRAY__INITFS__%d__=\"%s\"\n", FN, str);
 			}
-	/^ITEM_LOOPS/	{
-				pos = index($0,"=") + 1;
-				str = substr($0,pos);
-				gsub(/"/, "", str); 
-				printf("ARRAY__LOOPS__%d__=\"%s\"\n", FN, str);
-			}
