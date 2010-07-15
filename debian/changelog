@@ -1,3 +1,9 @@
+multiboot (0.2.3) unstable; urgency=low
+
+  * Fix for the keypad lid detection.
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Thu, 15 Jul 2010 23:56:18 +0100
+
 multiboot (0.2.2) unstable; urgency=low
 
   * Boot previous item if slide is closed.
