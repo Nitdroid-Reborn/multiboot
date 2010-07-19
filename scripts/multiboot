@@ -16,7 +16,7 @@ CONFIG_D=/etc/multiboot.d
 INIT_SEARCH="sbin/preinit sbin/init bin/init init linuxrc"
 
 # modules.boot searchlist
-MODULES_SEARCH="lib/modules/current/modules.boot etc/modules.boot"
+MODULES_SEARCH="lib/modules/current/modules.boot etc/modules.boot system/etc/modules.boot"
 
 # slide switch search list
 SLIDE_SEARCH="slide sw_lid kb_cover"
