@@ -63,6 +63,16 @@ safe_reboot()
 }
 
 
+safe_poweroff()
+{
+	echo -n "USER" > /var/lib/dsme/saved_state
+
+	mount / -o ro,remount
+	sync
+	poweroff -f
+}
+
+
 array()
 {
 	if [ -z "$3" ]
@@ -935,10 +945,10 @@ main()
 			31)  boot_shell ;;
 
 		        # Backscape - reboot
-		        14)  reboot -f  ;;
+		        14)  safe_reboot ;;
 
 			# X - poweroff
-                        45)  poweroff -f  ;;
+                        45)  safe_poweroff ;;
 
 		        # B - Fallback if everything else fails
 		        48)  boot_script /sbin/preinit_real  ;;
