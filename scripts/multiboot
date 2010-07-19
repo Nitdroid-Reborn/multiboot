@@ -57,9 +57,21 @@ fi
 ################################################################################################
 
 
+array()
+{
+	if [ -z "$3" ]
+	then
+		eval echo "\$ARRAY__${1}__${2}__"
+	else
+		eval ARRAY__$1__$2__="$3"
+	fi
+}
+
+
 safe_reboot()
 {
 	echo -n "USER" > /var/lib/dsme/saved_state
+	
 	mount / -o ro,remount
 	sync
 	reboot -f
@@ -73,17 +85,6 @@ safe_poweroff()
 	mount / -o ro,remount
 	sync
 	poweroff -f
-}
-
-
-array()
-{
-	if [ -z "$3" ]
-	then
-		eval echo "\$ARRAY__${1}__${2}__"
-	else
-		eval ARRAY__$1__$2__="$3"
-	fi
 }
 
 
@@ -302,7 +303,8 @@ load_pmconfig()
 
 read_config()
 {
-	local n=1
+	local file
+	local i=1
 
 	ITEM_LIST=""
 
@@ -310,12 +312,12 @@ read_config()
 	do
 		if [ -e "$file" ]
 		then
-			eval $( /sbin/multiboot_read_item FN=$n $file )
+			eval $( /sbin/multiboot_read_item FN=$i $file )
 
-			ITEM_LIST="${ITEM_LIST} $n"
-			n=$(expr $n + 1)
+			ITEM_LIST="${ITEM_LIST} $i"
+			i=$(expr $i + 1)
 
-			if [ $n -gt 9 ]
+			if [ $i -gt 9 ]
 			then
 				return 
 			fi
@@ -327,11 +329,10 @@ read_config()
 load_config()
 {
 	local file="$2"
-	local n="$1"
 
 	if [ -f "$file" ]
 	then
-		eval $( /sbin/multiboot_read_item FN=$n $file )
+		eval $( /sbin/multiboot_read_item FN=$1 $file )
 	fi
 }
 
@@ -339,18 +340,17 @@ load_config()
 store_config()
 {
 	local file="$2"
-	local n="$1"
 
-	echo "ITEM_ID=\"$( array ID $n )\""              > $file
-	echo "ITEM_NAME=\"$( array NAME $n )\""         >> $file
-	echo "ITEM_KERNEL=\"$( array KERNEL $n )\""     >> $file
-	echo "ITEM_MODULES=\"$( array MODULES $n )\""   >> $file
-	echo "ITEM_PARAMS=\"$( array PARAMS $n )\""     >> $file
-	echo "ITEM_DEVICE=\"$( array FS_ROOT $n )\""    >> $file
-	echo "ITEM_FSTYPE=\"$( array FS_TYPE $n )\""    >> $file
-	echo "ITEM_FSOPTIONS=\"$( array FS_OPTS $n )\"" >> $file
-	echo "ITEM_LINUXRC=\"$( array INITRC $n )\""    >> $file
-	echo "ITEM_INITFS=\"$( array INITFS $n )\""     >> $file
+	echo "ITEM_ID=\"$( array ID $1 )\""              > $file
+	echo "ITEM_NAME=\"$( array NAME $1 )\""         >> $file
+	echo "ITEM_KERNEL=\"$( array KERNEL $1 )\""     >> $file
+	echo "ITEM_MODULES=\"$( array MODULES $1 )\""   >> $file
+	echo "ITEM_PARAMS=\"$( array PARAMS $1 )\""     >> $file
+	echo "ITEM_DEVICE=\"$( array FS_ROOT $1 )\""    >> $file
+	echo "ITEM_FSTYPE=\"$( array FS_TYPE $1 )\""    >> $file
+	echo "ITEM_FSOPTIONS=\"$( array FS_OPTS $1 )\"" >> $file
+	echo "ITEM_LINUXRC=\"$( array INITRC $1 )\""    >> $file
+	echo "ITEM_INITFS=\"$( array INITFS $1 )\""     >> $file
 }
 
 
@@ -367,9 +367,7 @@ flash_kernel()
 
 swap_kernel()
 {
-	local n="$1"
-
-	local KERNEL=$( array KERNEL $n )
+	local KERNEL=$( array KERNEL $1 )
 
 	if [ -f /boot/multiboot/vmlinuz-$KERNEL -a -d /lib/modules/$KERNEL ]
 	then
@@ -431,30 +429,28 @@ clear_screen()
 
 wait_screen()
 {
-	local n=$1
-
         text2screen -c -x 0 -y 0   -w 790 -h 464 -B ${WHITE}
 	text2screen -c -x 0 -y 100 -w 790 -h 30  -B ${BLACK}
 	text2screen -c -x 0 -y 464 -w 800 -h 16  -B ${BLACK}
 	text2screen -c -x 790 -y 0 -w 10 -h 480  -B ${BLACK}
 
-	text2screen -t "$(array NAME $n)" -s 3 -x 40 -y 40 -T ${BLUE} -B ${WHITE}
+	text2screen -t "$(array NAME $1)" -s 3 -x 40 -y 40 -T ${BLUE} -B ${WHITE}
 	text2screen -t "BOOTING - PLEASE WAIT" -s 2 -x 40 -y 108 -T ${WHITE} -B ${BLACK}
 
-	text2screen -t "Kernel  : $(array KERNEL $n)"  -s 2 -x 20 -y 160 -T ${BLACK} -B ${WHITE}
-	text2screen -t "Params  : $(array PARAMS $n)"  -s 2 -x 20 -y 180 -T ${BLACK} -B ${WHITE}
-	text2screen -t "Modules : $(array MODULES $n)" -s 2 -x 20 -y 200 -T ${BLACK} -B ${WHITE}
-	text2screen -t "Device  : $(array FS_ROOT $n)" -s 2 -x 20 -y 220 -T ${BLACK} -B ${WHITE}
-	text2screen -t "FS type : $(array FS_TYPE $n)" -s 2 -x 20 -y 240 -T ${BLACK} -B ${WHITE}
-	text2screen -t "FS opts : $(array FS_OPTS $n)" -s 2 -x 20 -y 260 -T ${BLACK} -B ${WHITE}
-	text2screen -t "linuxrc : $(array INITRC $n)" -s 2 -x 20 -y 280 -T ${BLACK} -B ${WHITE}
-	text2screen -t "initfs  : $(array INITFS $n)" -s 2 -x 20 -y 300 -T ${BLACK} -B ${WHITE}
+	text2screen -t "Kernel  : $(array KERNEL $1)"  -s 2 -x 20 -y 160 -T ${BLACK} -B ${WHITE}
+	text2screen -t "Params  : $(array PARAMS $1)"  -s 2 -x 20 -y 180 -T ${BLACK} -B ${WHITE}
+	text2screen -t "Modules : $(array MODULES $1)" -s 2 -x 20 -y 200 -T ${BLACK} -B ${WHITE}
+	text2screen -t "Device  : $(array FS_ROOT $1)" -s 2 -x 20 -y 220 -T ${BLACK} -B ${WHITE}
+	text2screen -t "FS type : $(array FS_TYPE $1)" -s 2 -x 20 -y 240 -T ${BLACK} -B ${WHITE}
+	text2screen -t "FS opts : $(array FS_OPTS $1)" -s 2 -x 20 -y 260 -T ${BLACK} -B ${WHITE}
+	text2screen -t "linuxrc : $(array INITRC $1)" -s 2 -x 20 -y 280 -T ${BLACK} -B ${WHITE}
+	text2screen -t "initfs  : $(array INITFS $1)" -s 2 -x 20 -y 300 -T ${BLACK} -B ${WHITE}
 }
 
 
 print_menu()
 {
-	local x y n
+	local x y i
 
         text2screen -c -x 0 -y 0   -w 790 -h 464 -B ${WHITE}
 	text2screen -c -x 0 -y 100 -w 790 -h 30  -B ${BLACK}
@@ -467,9 +463,9 @@ print_menu()
 	x=60
 	y=160
 
-	for n in ${ITEM_LIST}
+	for i in ${ITEM_LIST}
 	do
-		text2screen -t "$n - $(array NAME $n)" -x $x -y $y -T ${BLACK} -B ${WHITE} -s 2
+		text2screen -t "$i - $(array NAME $i)" -x $x -y $y -T ${BLACK} -B ${WHITE} -s 2
 		y=$(expr $y + 22)
 	done
 }
@@ -622,12 +618,10 @@ done_fs()
 
 mount_root()
 {
-	local n=$1
-
-	local FS_ROOT=$(array FS_ROOT $n)
-	local FS_TYPE=$(array FS_TYPE $n)
-	local FS_OPTS=$(array FS_OPTS $n)
-	local MODULES=$(array MODULES $n)
+	local FS_ROOT=$(array FS_ROOT $1)
+	local FS_TYPE=$(array FS_TYPE $1)
+	local FS_OPTS=$(array FS_OPTS $1)
+	local MODULES=$(array MODULES $1)
 
 	local OPTS=""
 
@@ -755,10 +749,8 @@ boot_script()
 
 boot_chroot()
 {
-	local n=$1
-
-	local INITRC=$(array INITRC $n)
-	local INITFS=$(array INITFS $n)
+	local INITRC=$(array INITRC $1)
+	local INITFS=$(array INITFS $1)
 
 	# No initfs defined
 	if [ -z "${INITFS}" ]
@@ -769,7 +761,7 @@ boot_chroot()
 	fi
 
 	# Mount new root filesystem
-	if mount_root $n
+	if mount_root $1
 	then
 		# Booting ok - save as default
 		store_config $1 ${BOOT_ITEM}
@@ -807,18 +799,16 @@ boot_chroot()
 
 boot_kexec()
 {
-	local n=$1
-	
-	local KERNEL=$(array KERNEL $n)
-	local PARAMS=$(array PARAMS $n)
-	local ROOT=$(array FS_ROOT $n)
+	local KERNEL=$(array KERNEL $1)
+	local PARAMS=$(array PARAMS $1)
+	local ROOT=$(array FS_ROOT $1)
 	local CMDLINE
 	local PREFIX="/"
 
 	# New root FS needed
 	if [ -n "$ROOT" ]
 	then
-		if mount_root $n
+		if mount_root $1
 		then
 			PREFIX="/mnt"
 		else
@@ -860,21 +850,19 @@ boot_kexec()
 
 boot_item()
 {
-	local n=$1
+	local NAME=$(array NAME $1)
+	local ROOT=$(array FS_ROOT $1)
+	local KERNEL=$(array KERNEL $1)
 
-	local NAME=$(array NAME $n)
-	local KERNEL=$(array KERNEL $n)
-	local ROOT=$(array FS_ROOT $n)
-
-	if [ -n "${NAME}" ]
+	if [ -n "$NAME" ]
 	then
 		if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
 		then
 			if [ -z "$ROOT" ]
 			then
-				boot_maemo $n
+				boot_maemo $1
 			else
-				boot_chroot $n
+				boot_chroot $1
 			fi
 	
 			safe_reboot
@@ -911,7 +899,7 @@ boot_shell()
 
 main()
 {
-	local n i
+	local sel i
 
 	init_hw
 	init_fs
@@ -941,29 +929,29 @@ main()
 	do
 		print_menu
 		
-		n=$(wait_keypress)
+		sel=$(wait_keypress)
 	
 		echo -e -n '\r'
 
-		case $n in
+		case $sel in
 
 			# Timeout
-			D)   n="99" ;;
+			D)   sel=99 ;;
 
 			# Enter
-		        28)  n="99" ;;
+		        28)  sel=99 ;;
 
 			# 0-9
-			16)  n="1" ;;
-			17)  n="2" ;;
-			18)  n="3" ;;
-			19)  n="4" ;;
-			20)  n="5" ;;
-			21)  n="6" ;;
-			22)  n="7" ;;
-			23)  n="8" ;;
-			24)  n="9" ;;
-			25)  n="0" ;;
+			16)  sel=1 ;;
+			17)  sel=2 ;;
+			18)  sel=3 ;;
+			19)  sel=4 ;;
+			20)  sel=5 ;;
+			21)  sel=6 ;;
+			22)  sel=7 ;;
+			23)  sel=8 ;;
+			24)  sel=9 ;;
+			25)  sel=0 ;;
 		        
 			# S - shell
 			31)  boot_shell ;;
@@ -982,10 +970,10 @@ main()
 
 		esac
 
-		if [ -n "$(array NAME $n)" ]
+		if [ -n "$(array NAME $sel)" ]
 		then
-			wait_screen $n
-			boot_item $n
+			wait_screen $sel
+			boot_item $sel
 		fi
 	done
 }
