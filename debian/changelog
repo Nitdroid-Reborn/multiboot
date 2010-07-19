@@ -1,3 +1,9 @@
+multiboot (0.2.5) unstable; urgency=low
+
+  * Added dependency to multiboot-extras
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Mon, 19 Jul 2010 16:42:44 +0100
+
 multiboot (0.2.4) unstable; urgency=low
 
   * Fixes for display light, default boot item, fast boot, flash loop.
