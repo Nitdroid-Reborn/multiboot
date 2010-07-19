@@ -32,6 +32,9 @@ INT_CARD="mmcblk1"
 # Predefined items
 ARRAY__NAME__0__="Maemo (default)"
 
+# Flags
+FAST_BOOT=NO
+
 # Colours
 if [ -e /etc/INSIDE_QEMU ]
 then
@@ -127,7 +130,7 @@ is_slide_open()
 
 is_fast_boot()
 {
-	test -f ${BOOT_FAST} -a -f ${BOOT_ITEM}
+	test X${FAST_BOOT} = XYES -a -f ${BOOT_ITEM}
 }
 
 
@@ -370,9 +373,14 @@ swap_kernel()
 
 	if [ -f /boot/multiboot/vmlinuz-$KERNEL -a -d /lib/modules/$KERNEL ]
 	then
-		echo 1 > ${BOOT_FAST}
+		store_config $1 ${BOOT_ITEM}
+		touch ${BOOT_FAST}
+
 		flash_kernel "/boot/multiboot/vmlinuz-$KERNEL"
+		
 		safe_reboot
+	else
+		echo -e "\n\nCan't flash kernel ${KERNEL}\n"
 	fi
 }
 
@@ -688,6 +696,9 @@ prepare_root()
 
 boot_maemo()
 {
+	# Booting ok - save as default
+	store_config $1 ${BOOT_ITEM}
+
 	# Load all kernel modules
 	load_kernel_modules
 
@@ -760,6 +771,9 @@ boot_chroot()
 	# Mount new root filesystem
 	if mount_root $n
 	then
+		# Booting ok - save as default
+		store_config $1 ${BOOT_ITEM}
+
 		# Prepare root filesystem
 		prepare_root /mnt ${INITFS}
 
@@ -848,26 +862,29 @@ boot_item()
 {
 	local n=$1
 
+	local NAME=$(array NAME $n)
 	local KERNEL=$(array KERNEL $n)
 	local ROOT=$(array FS_ROOT $n)
 
-	store_config $n ${BOOT_ITEM}
-
-	rm -f ${BOOT_FAST}
-	
-	if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
+	if [ -n "${NAME}" ]
 	then
-		if [ -z "$ROOT" ]
+		if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
 		then
-			boot_maemo $n
+			if [ -z "$ROOT" ]
+			then
+				boot_maemo $n
+			else
+				boot_chroot $n
+			fi
+	
+			safe_reboot
 		else
-			boot_chroot $n
+			if [ X${FAST_BOOT} != XYES ]
+			then
+				swap_kernel $1
+			fi
 		fi
-	else
-		swap_kernel $n
 	fi
-
-	safe_reboot
 }
 
 
@@ -900,13 +917,20 @@ main()
 	init_fs
 	init_pm
 
+	if [ -f ${BOOT_FAST} ]
+	then
+		FAST_BOOT=YES
+		rm -f ${BOOT_FAST}
+	fi
+	
+	if [ -f ${BOOT_ITEM} ]
+	then
+		load_config 99 ${BOOT_ITEM}
+	fi
+
 	if is_fast_boot || ! is_slide_open
 	then
-		if [ -f ${BOOT_ITEM} ]
-		then
-			load_config 1 ${BOOT_ITEM}
-			boot_item 1
-		fi
+		boot_item 99
 	fi
 
 	init_screen
@@ -924,10 +948,10 @@ main()
 		case $n in
 
 			# Timeout
-			D)   n="0" ;;
+			D)   n="99" ;;
 
 			# Enter
-		        28)  n="0" ;;
+		        28)  n="99" ;;
 
 			# 0-9
 			16)  n="1" ;;
