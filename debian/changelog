@@ -1,3 +1,9 @@
+multiboot (0.2.4) unstable; urgency=low
+
+  * Fixes for display light, default boot item, fast boot, flash loop.
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Mon, 19 Jul 2010 12:32:18 +0100
+
 multiboot (0.2.3) unstable; urgency=low
 
   * Fix for the keypad lid detection.

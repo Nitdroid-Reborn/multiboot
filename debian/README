@@ -1,6 +1,10 @@
-The Debian Package multiboot
-----------------------------
 
-Version 0.2.0 is work-in-progress.
+Welcome to multiboot
+~~~~~~~~~~~~~~~~~~~~
 
- -- Jay Cartman <jay.cartman@gmail.com>  Wed, 14 Jul 2010 16:26:27 +0100
+This is a completely rewritten second stage bootloader for Maemo 5.
+
+Please read the file /etc/multiboot.d/examples/README
+
+
+Enjoy!

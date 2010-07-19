@@ -25,11 +25,11 @@ prepare()
 
 case "$1" in
 
-    remove|upgrade|deconfigure)
+    remove|upgrade)
 	prepare
 	;;
 	
-    failed-upgrade)
+    failed-upgrade|deconfigure)
 	;;
 		
     *)
