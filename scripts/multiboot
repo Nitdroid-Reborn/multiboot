@@ -31,6 +31,7 @@ INT_CARD="mmcblk1"
 
 # Predefined items
 ARRAY__NAME__0__="Maemo (default)"
+ARRAY__KERNEL__0__="2.6.28-omap1"
 
 # Flags
 FAST_BOOT=NO
