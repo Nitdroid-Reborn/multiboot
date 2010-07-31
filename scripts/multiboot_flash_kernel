@@ -2,8 +2,16 @@
 
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
+initctl stop softupd
+
 ifconfig lo 127.0.0.1 netmask 255.0.0.0 up
 
 softupd --local --verbose --stdout --standalone &
+pid=$!
+
 flasher --local -f -k $1
 
+sleep 1
+kill $pid
+
+echo "Finished flashing."
