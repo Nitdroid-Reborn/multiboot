@@ -307,7 +307,7 @@ read_config()
 	local file
 	local i=1
 
-	ITEM_LIST=""
+	ITEM_LIST="0"
 
 	for file in ${CONFIG_D}/*.item
 	do
