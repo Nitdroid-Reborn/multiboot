@@ -19,11 +19,11 @@ INIT_SEARCH="sbin/preinit sbin/init bin/init init linuxrc"
 MODULES_SEARCH="lib/modules/current/modules.boot etc/modules.boot system/etc/modules.boot"
 
 # slide switch search list
-SLIDE_SEARCH="slide sw_lid kb_cover"
+SLIDE_SEARCH="slide sw_lid"
 
 # Boot files
 BOOT_ITEM="/.multiboot.item"
-BOOT_FAST="./multiboot.fast"
+BOOT_FAST="/.multiboot.fast"
 
 # MMC Cards
 EXT_CARD="mmcblk0"
@@ -35,6 +35,7 @@ ARRAY__KERNEL__0__="2.6.28-omap1"
 
 # Flags
 FAST_BOOT=NO
+BOOT_STATE=USER
 
 # Colours
 if [ -e /etc/INSIDE_QEMU ]
@@ -71,7 +72,7 @@ array()
 
 safe_reboot()
 {
-	echo -n "USER" > /var/lib/dsme/saved_state
+	echo -n ${BOOT_STATE} > /var/lib/dsme/saved_state
 	
 	mount / -o ro,remount
 	sync
@@ -81,11 +82,45 @@ safe_reboot()
 
 safe_poweroff()
 {
-	echo -n "USER" > /var/lib/dsme/saved_state
+	echo -n ${BOOT_STATE} > /var/lib/dsme/saved_state
 
 	mount / -o ro,remount
 	sync
 	poweroff -f
+}
+
+
+get_boot_state()
+{
+	local state reason saved
+
+	reason=$(cat /proc/bootreason)
+
+	if [ -e /var/lib/dsme/saved_state ]
+	then
+		saved=$(cat /var/lib/dsme/saved_state)
+	else
+		saved=MALF
+	fi
+
+	case "${reason}" in
+		pwr_key)	state=USER	;;
+		update)		state=FLASH	;;
+
+		usb)		state=ACT_DEAD	;;
+		charger)	state=ACT_DEAD	;;
+		rtc_alarm)	state=ACT_DEAD	;;
+
+		sw_rst)		state=${saved}	;;
+
+		por)		state=${saved}	;;
+		32wd_to)	state=${saved}	;;
+		swdg_to)	state=${saved}	;;
+
+		*)		state=MALF	;;
+	esac
+
+	BOOT_STATE=${state}
 }
 
 
@@ -599,6 +634,9 @@ init_fs()
 
 	# Depmod
 	depmod -A $(uname -r)
+
+	# Boot reason
+	get_boot_state
 }
 
 
@@ -705,16 +743,13 @@ boot_maemo()
 	echo active  > /sys/devices/platform/gpio-switch/cmt_bsi/state
 	echo 10  > /sys/devices/platform/serial8250.0/sleep_timeout
 
-	# Get bootstate
-	BOOT_STATE=$(getbootstate)
-
 	# init RUNLEVEL
 	case ${BOOT_STATE} in 
 		BOOT)		INITLEVEL=6  ;;
 		USER|FLASH)	INITLEVEL=2  ;;
 		ACT_DEAD)	INITLEVEL=5  ;;
 		LOCAL|TEST)	INITLEVEL=3  ;;
-		SHUTDOWN)	INITLEVEL=2  ;; # orig: 0
+		SHUTDOWN)	INITLEVEL=0  ;;
 	        *) 		INITLEVEL=2  ;;
 	esac
 
