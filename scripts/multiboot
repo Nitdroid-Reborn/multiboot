@@ -2,6 +2,8 @@
 #
 # Maemo ULTimate BOOTloader
 #
+# Copyright (C) 2010  Jay Cartman
+#
 
 # Search path
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
@@ -300,7 +302,7 @@ wait_root_device()
 		sleep 1
 	done
 
-	log "Root device $dev NOT available."
+	log "Root device $dev NOT available"
 
 	return 1
 }
@@ -446,7 +448,7 @@ swap_kernel()
 		
 		safe_reboot
 	else
-		log "Can't flash kernel ${KERNEL}. File not found."
+		log "Can't flash kernel ${KERNEL}. Required files not found."
 	fi
 }
 
@@ -585,16 +587,16 @@ init_backlight()
 
 init_pm()
 {
-	log "Initializing power configuration"
+	log "Initializing default power configuration"
 
 	## Default values for Maemo
 	
 	echo 1  > /sys/power/enable_off_mode
 	echo 1  > /sys/power/sleep_while_idle
-	echo 0  > /sys/power/sr_vdd1_autocomp
-	echo 0  > /sys/power/sr_vdd2_autocomp
 	echo 1  > /sys/power/clocks_off_while_idle
 	echo 1  > /sys/power/voltage_off_while_idle
+	echo 0  > /sys/power/sr_vdd1_autocomp
+	echo 0  > /sys/power/sr_vdd2_autocomp
 
 	echo ondemand  > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 	echo 600000    > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
@@ -606,7 +608,7 @@ init_pm()
 
 init_fs()
 {
-	log "Mounting filesystems"
+	log "Mounting filesystems: proc sys tmp dev"
 
 	# Mount point for new root
 	test -d /mnt || mkdir -m 0700 /mnt
@@ -625,7 +627,7 @@ init_fs()
 	fi
 	
 	# Dev nodes
-	log "Creating device nodes"
+	log "Creating device nodes in /dev"
 
         mknod /dev/mem  c 1 1
         mknod /dev/null c 1 3
@@ -688,7 +690,7 @@ init_fs()
 	## Modules
 	log "Configuring modules for $(uname -r)"
 
-	# Current link	
+	# Current link
 	rm -f /lib/modules/current
 	ln -s $(uname -r) /lib/modules/current
 
@@ -702,7 +704,7 @@ init_fs()
 
 done_fs()
 {
-	log "Unmounting filesystems"
+	log "Unmounting filesystems: pts dev tmp sys proc"
 
 	# Unmount filesystems
 	is_mod_mounted     && umount /lib/modules/$(uname -r)
@@ -743,17 +745,15 @@ mount_root()
 
 	if wait_root_device "$FS_ROOT" 10
 	then
-		log "Mounting root fs /dev/${FS_ROOT}"
-
 		if mount $OPTS /dev/${FS_ROOT} /mnt
 		then
-			log "Mount OK"
+			log "Mounted root fs /dev/${FS_ROOT} on /mnt"
 		else
-			log "Mount FAILED - fs not mounted"
+			log "Mounting root fs /dev/${FS_ROOT} FAILED"
 			return 1
 		fi
 	else
-		log "Root filesystem /dev/${FS_ROOT} not accessible"
+		log "Root device /dev/${FS_ROOT} not accessible"
 		return 1
 	fi
 
@@ -830,6 +830,8 @@ boot_maemo()
 
 	# Start init
 	log "Starting /sbin/init ${INITLEVEL}"
+
+	# Switch over
 	exec /sbin/init ${INITLEVEL}
 
 	# Fallback
@@ -868,6 +870,8 @@ boot_chroot()
 		INITFS=${INITFS##/}
 	fi
 
+	log "initfs in ${INITFS}"
+
 	# Mount new root filesystem
 	if mount_root $1
 	then
@@ -886,11 +890,13 @@ boot_chroot()
 		# Done with extra filesystems
 		done_fs
 
+		# Must log before pivot
+		log "Switching over to init"
+
 		# New root location
 		cd /mnt || return 1
 
-		# Change root
-		log "Pivoting root to ${INITFS}"
+		# Pivot root into initfs
 		pivot_root . ${INITFS}
 
 		# Switch over
@@ -898,7 +904,6 @@ boot_chroot()
 		do
 			if [ -x ${file} ]
 			then
-				log "Switching over to ${file}"
 				exec chroot . ${file}
 			fi
 		done
@@ -933,7 +938,7 @@ boot_kexec()
 		CMDLINE="$(cat /proc/cmdline)"
 	fi
 
-	echo "*** Booting [${PREFIX}]${KERNEL} ${CMDLINE}"
+	log "Booting [${PREFIX}]${KERNEL} ${CMDLINE}"
 
 	if [ -e "${PREFIX}${KERNEL}" ]
 	then
@@ -941,7 +946,7 @@ boot_kexec()
 		kexec -l "${PREFIX}${KERNEL}" --command-line="${CMDLINE}"
 
 		# Say something
-		echo "*** Booting now..."
+		log "kexec now..."
 
 		# Done with FS access
 		##done_fs
@@ -950,7 +955,7 @@ boot_kexec()
 		# Start the kernel
 		exec kexec -f -e			
 	else
-		echo "Kernel ${KERNEL} not found."
+		log "kernel ${KERNEL} not found."
 	fi
 
 	return 1
