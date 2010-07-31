@@ -562,8 +562,9 @@ init_hw()
 {
 	log "Initializing HW"
 
-	# Kernel modules required in bootup
-	load_modules watchdog twl4030_wdt
+	## Kernel modules required in bootup
+
+	load_modules omap_wdt twl4030_wdt
 	load_modules omap_hsmmc mmc_core mmc_block
 	load_modules twl4030-madc
 	load_modules led-class leds-lp5523
