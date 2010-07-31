@@ -28,6 +28,7 @@ build: evkey/evkey
 evkey/evkey: evkey/evkey.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
+
 install:
 	install -o root -g root -m 0755 -d $(DESTDIR)/etc
 	install -o root -g root -m 0755 -d $(DESTDIR)/etc/multiboot.d

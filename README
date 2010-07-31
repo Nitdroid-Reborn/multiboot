@@ -51,10 +51,8 @@ ITEM_FSTYPE="..."
 
 ITEM_FSOPTIONS="..."
 	Filesystem options for root fs. Typically,
-	  for ext2:
+	  for ext2/ext3:
 		"rw,noatime,errors=remount-ro"
-	  for ext3:
-		"rw,noatime,errors=remount-ro,commit=3"
 	
 ITEM_INITRC="..."
 	Init program to execute when switching over to root.
@@ -63,7 +61,7 @@ ITEM_INITRC="..."
 ITEM_INITFS="..."
 	Locations where the Maemo root fs is moved after pivot.
 	Typically "initrd" or "mnt/initfs"
- 	Defaults to "initrd"
+ 	Defaults to "mnt/initfs"
 
 
 1.2 Kernel power configuration
