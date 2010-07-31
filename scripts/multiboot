@@ -24,6 +24,8 @@ SLIDE_SEARCH="slide sw_lid"
 # Boot files
 BOOT_ITEM="/.multiboot.item"
 BOOT_FAST="/.multiboot.fast"
+BOOT_LOG0="/.multiboot.log"
+BOOT_LOG1="/.multiboot.log.old"
 
 # MMC Cards
 EXT_CARD="mmcblk0"
@@ -70,10 +72,19 @@ array()
 }
 
 
+log()
+{
+	echo -e "$1" >> ${BOOT_LOG0}
+	echo -e "$1"
+}
+
+
 safe_reboot()
 {
 	echo -n ${BOOT_STATE} > /var/lib/dsme/saved_state
 	
+	log "Rebooting..."
+
 	mount / -o ro,remount
 	sync
 	reboot -f
@@ -83,6 +94,8 @@ safe_reboot()
 safe_poweroff()
 {
 	echo -n ${BOOT_STATE} > /var/lib/dsme/saved_state
+
+	log "Poweroff..."
 
 	mount / -o ro,remount
 	sync
@@ -95,6 +108,8 @@ get_boot_state()
 	local state reason saved
 
 	reason=$(cat /proc/bootreason)
+
+	log "Boot reason: $reason"
 
 	if [ -e /var/lib/dsme/saved_state ]
 	then
@@ -120,6 +135,8 @@ get_boot_state()
 		*)		state=MALF	;;
 	esac
 
+	log "Boot state: $state"
+
 	BOOT_STATE=${state}
 }
 
@@ -139,8 +156,9 @@ is_slide_open()
 	do
 		if [ -d /sys/devices/platform/gpio-switch/$name ]
 		then
-			state=/sys/devices/platform/gpio-switch/$name/state
-			if [ X$( cat $state ) = Xopen ]
+			state=$(cat /sys/devices/platform/gpio-switch/$name/state)
+			log "Slide state from GPIO[$name] $state"
+			if [ X${state} = Xopen ]
 			then
 				return 0
 			else
@@ -160,6 +178,8 @@ is_slide_open()
 	then 
 		return 1
 	fi
+
+	log "Slide state unknown"
 
 	return 0
 }
@@ -266,6 +286,8 @@ wait_root_device()
 	do
 		if grep -q $dev /proc/partitions
 		then
+			log "Root device $dev available"
+
 			if [ -b /dev/$dev ]
 			then
 				return 0
@@ -277,6 +299,8 @@ wait_root_device()
 		wait=$(expr $wait - 1)
 		sleep 1
 	done
+
+	log "Root device $dev NOT available."
 
 	return 1
 }
@@ -299,13 +323,13 @@ load_kernel_modules()
 
 	if [ -f "${FILE}" ]
 	then
-		echo "Loading modules from ${FILE}"
+		log "Loading kernel modules from ${FILE}"
 
 		cat ${FILE} | egrep -v '^#' | while read module
 		do
 			if [ -n "${module}" ]
 			then
-				echo "Loading module ${module}"
+				log "Loading module ${module}"
 				modprobe -i -q ${module}
 			fi
 		done
@@ -319,7 +343,7 @@ load_modules()
 	
 	for module
 	do
-		echo "Loading module $module"
+		log "Loading module $module"
 		modprobe -i -q $module
 	done
 }
@@ -331,7 +355,7 @@ load_pmconfig()
 
 	if [ -e $FILE ]
 	then
-		echo "Loading kernel power configuration from $FILE"
+		log "Loading kernel power configuration from $FILE"
 		powerconfig $FILE
 	fi
 }
@@ -348,6 +372,8 @@ read_config()
 	do
 		if [ -e "$file" ]
 		then
+			log "Reading boot item [$i] from file $file"
+
 			eval $( /sbin/multiboot_read_item FN=$i $file )
 
 			ITEM_LIST="${ITEM_LIST} $i"
@@ -368,6 +394,8 @@ load_config()
 
 	if [ -f "$file" ]
 	then
+		log "Reading boot item [$1] from file $file"
+
 		eval $( /sbin/multiboot_read_item FN=$1 $file )
 	fi
 }
@@ -376,6 +404,8 @@ load_config()
 store_config()
 {
 	local file="$2"
+
+	log "Storing boot configuration into file $file"
 
 	echo "ITEM_ID=\"$( array ID $1 )\""              > $file
 	echo "ITEM_NAME=\"$( array NAME $1 )\""         >> $file
@@ -392,6 +422,8 @@ store_config()
 
 flash_kernel()
 {
+	log "Flashing kernel file $1"
+
 	ifconfig lo 127.0.0.1 netmask 255.0.0.0 up
 
 	softupd --local --verbose --stdout --standalone &
@@ -414,7 +446,7 @@ swap_kernel()
 		
 		safe_reboot
 	else
-		echo -e "\n\nCan't flash kernel ${KERNEL}\n"
+		log "Can't flash kernel ${KERNEL}. File not found."
 	fi
 }
 
@@ -514,8 +546,22 @@ print_menu()
 #
 ################################################################################################
 
+
+init_log()
+{
+	if [ -f ${BOOT_LOG0} ]
+	then
+		mv -f ${BOOT_LOG0} ${BOOT_LOG1}
+	fi
+
+	log "MULTIBOOT starting up"
+}
+
+
 init_hw()
 {
+	log "Initializing HW"
+
 	# Kernel modules required in bootup
 	load_modules watchdog twl4030_wdt
 	load_modules omap_hsmmc mmc_core mmc_block
@@ -523,8 +569,11 @@ init_hw()
 	load_modules led-class leds-lp5523
 }
 
+
 init_backlight()
 {
+	log "Initializing backlights"
+
 	for i in 1 2 3 4 5 6 ; do
 		echo 208 > /sys/class/leds/lp5523:kb${i}/brightness
 	done
@@ -532,8 +581,11 @@ init_backlight()
 	echo 120 > /sys/class/backlight/acx565akm/brightness
 }
 
+
 init_pm()
 {
+	log "Initializing power configuration"
+
 	## Default values for Maemo
 	
 	echo 1  > /sys/power/enable_off_mode
@@ -553,6 +605,8 @@ init_pm()
 
 init_fs()
 {
+	log "Mounting filesystems"
+
 	# Mount point for new root
 	test -d /mnt || mkdir -m 0700 /mnt
 
@@ -568,8 +622,10 @@ init_fs()
 		mkdir /dev/pts
 ##		mount -t devpts devpts /dev/pts -o gid=5,mode=0620
 	fi
-
+	
 	# Dev nodes
+	log "Creating device nodes"
+
         mknod /dev/mem  c 1 1
         mknod /dev/null c 1 3
         mknod /dev/zero c 1 5
@@ -628,7 +684,10 @@ init_fs()
         ln -s /proc/self/fd/1 /dev/stdout
         ln -s /proc/self/fd/2 /dev/stderr
 
-	# Current link in modules
+	## Modules
+	log "Configuring modules for $(uname -r)"
+
+	# Current link	
 	rm -f /lib/modules/current
 	ln -s $(uname -r) /lib/modules/current
 
@@ -642,6 +701,8 @@ init_fs()
 
 done_fs()
 {
+	log "Unmounting filesystems"
+
 	# Unmount filesystems
 	is_mod_mounted     && umount /lib/modules/$(uname -r)
 	is_pts_mounted     && umount /dev/pts
@@ -681,16 +742,17 @@ mount_root()
 
 	if wait_root_device "$FS_ROOT" 10
 	then
-		if mount $OPTS /dev/$FS_ROOT /mnt
+		log "Mounting root fs /dev/${FS_ROOT}"
+
+		if mount $OPTS /dev/${FS_ROOT} /mnt
 		then
-			echo "Mount OK:"
-			cat /proc/mounts | grep $FS_ROOT
+			log "Mount OK"
 		else
-			echo "Mount failed."
+			log "Mount FAILED - fs not mounted"
 			return 1
 		fi
 	else
-		echo "Root device not available"
+		log "Root filesystem /dev/${FS_ROOT} not accessible"
 		return 1
 	fi
 
@@ -702,6 +764,8 @@ umount_root()
 {
 	local FS_ROOT=$(array FS_ROOT $1)
 
+	log "Unmounting root fs ${FS_ROOT}"
+
 	umount "$FS_ROOT"
 }
 
@@ -711,6 +775,8 @@ prepare_root()
 	local ROOT="$1"
 	local INITFS="$2"
 	local MPATH="/lib/modules/$(uname -r)"
+
+	log "Preparing root filesystem"
 
 	# Must have initfs mount point
 	test -d ${ROOT}/${INITFS} || mkdir -m 0755 ${ROOT}/${INITFS}
@@ -729,6 +795,8 @@ prepare_root()
 
 boot_maemo()
 {
+	log "Booting Maemo default configuration"
+
 	# Booting ok - save as default
 	store_config $1 ${BOOT_ITEM}
 
@@ -760,6 +828,7 @@ boot_maemo()
 	done_fs
 
 	# Start init
+	log "Starting /sbin/init ${INITLEVEL}"
 	exec /sbin/init ${INITLEVEL}
 
 	# Fallback
@@ -769,6 +838,8 @@ boot_maemo()
 
 boot_script()
 {
+	log "Running script $*"
+
 	# Clear screen
 	clear_screen
 
@@ -818,6 +889,7 @@ boot_chroot()
 		cd /mnt || return 1
 
 		# Change root
+		log "Pivoting root to ${INITFS}"
 		pivot_root . ${INITFS}
 
 		# Switch over
@@ -825,7 +897,7 @@ boot_chroot()
 		do
 			if [ -x ${file} ]
 			then
-				echo "Switching over to ${file}"
+				log "Switching over to ${file}"
 				exec chroot . ${file}
 			fi
 		done
@@ -890,6 +962,8 @@ boot_item()
 	local ROOT=$(array FS_ROOT $1)
 	local KERNEL=$(array KERNEL $1)
 
+	log "Booting item #$1"
+
 	if [ -n "$NAME" ]
 	then
 		if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
@@ -914,6 +988,8 @@ boot_item()
 
 boot_shell()
 {
+	log "Starting shell"
+
 	clear_screen
 
 	echo -e "\n\nEntering a root shell.\nType 'exit' to leave."
@@ -925,7 +1001,7 @@ boot_shell()
 		/bin/sh
 	fi
 
-	echo -e "\nRebooting...\n\n"
+	log "Rebooting..."
 
 	sleep 3
 
@@ -937,6 +1013,7 @@ main()
 {
 	local sel i
 
+	init_log
 	init_hw
 	init_fs
 	init_pm
@@ -1011,6 +1088,8 @@ main()
 			wait_screen $sel
 			boot_item $sel
 		fi
+
+		log "Booting item #${sel} failed. Trying again."
 	done
 }
 
@@ -1018,4 +1097,3 @@ main()
 main
 
 # End
-
