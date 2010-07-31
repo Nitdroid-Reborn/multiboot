@@ -756,7 +756,7 @@ boot_chroot()
 	# No initfs defined
 	if [ -z "${INITFS}" ]
 	then
-		INITFS="initrd"
+		INITFS="mnt/initfs"
 	else
 		INITFS=${INITFS##/}
 	fi
