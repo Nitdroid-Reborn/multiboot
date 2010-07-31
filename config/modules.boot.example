@@ -12,6 +12,9 @@ twl4030_wdt
 #rtc-core
 #rtc-twl4030
 
+# Switch core
+switch_class
+
 # Accl sensor
 lis302dl
 
@@ -40,7 +43,7 @@ ssi_mcsaab_imp
 # Misc binary format
 binfmt_misc
 
-# Network power control
+# RF power control
 rfkill
 rfkill-input
 wl127x-rfkill
@@ -50,40 +53,45 @@ mac80211
 crc7
 
 # Bluetooth
-hidp
+bluetooth
 rfcomm
-sco
 hci_h4p
+sco
+hidp
 
 # OMAP DSP
 #bridgedriver
 #dspbridge
+
+# OMAP iommu
+omap3-iommu
+iommu
+iommu2
+iovmm
 
 # Camera subsystem
 #smia-sensor
 #omap34xxcam-mod
 #board-rx51-camera
 
-# OMAP iommu
-#omap3-iommu
-
 # power vr
-#pvrsrvkm.ko
+#pvrsrvkm
+#omaplfb
 
 # fm transmitter
-#fmtx-si4713.ko
+#fmtx-si4713
 
 # autofocus
-#ad5820.ko
+ad5820
 
 # torch
-#adp1653
+adp1653
 
 # Filesystems
 fat
 vfat
 msdos
 
-# USB gadgets
-g_nokia
+# Android gadget (adb,storage)
+g_android
 
