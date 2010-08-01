@@ -1,3 +1,9 @@
+multiboot (0.2.6) unstable; urgency=low
+
+  * Bugs fixed. Logging support added.
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Sun, 1 Aug 2010 22:40:12 +0100
+
 multiboot (0.2.5) unstable; urgency=low
 
   * Added dependency to multiboot-extras

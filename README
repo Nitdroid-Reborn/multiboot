@@ -91,8 +91,6 @@ BS	Reboot
 
 X	Poweroff
 
-B	Fallback to use the original Maemo script to boot maemo
-
 S	Starts a shell
 
 
