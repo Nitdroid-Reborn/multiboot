@@ -1,6 +1,18 @@
+multiboot (0.2.7) unstable; urgency=low
+
+  * Proper handling of initfs mount point
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Mon, 2 Aug 2010 00:42:32 +0100
+
 multiboot (0.2.6) unstable; urgency=low
 
-  * Bugs fixed. Logging support added.
+  * Lots of fixes:
+    - Maemo booting problem fixed
+    - logging support added
+    - initfs locations defaults to /mnt/initfs
+    - item #0 added back to the boot screen
+    - OMAP watchdog enabled (name fixed)
+    - also flashes kernels from /boot
 
  -- Jay Cartman <jay.cartman@gmail.com>  Sun, 1 Aug 2010 22:40:12 +0100
 
