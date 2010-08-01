@@ -792,7 +792,11 @@ prepare_root()
 	log "Preparing root filesystem"
 
 	# Must have initfs mount point
-	test -d ${ROOT}/${INITFS} || mkdir -m 0755 ${ROOT}/${INITFS}
+	if [ ! -d ${ROOT}/${INITFS} ]
+	then
+		rm -f ${ROOT}/${INITFS}
+		mkdir -m 0755 ${ROOT}/${INITFS}
+	fi
 
 	# Current link in modules
 	rm -f ${ROOT}/lib/modules/current
