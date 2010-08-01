@@ -1085,6 +1085,9 @@ main()
 			24)  sel=9 ;;
 			25)  sel=0 ;;
 		        
+		        # B - Boot default
+		        48)  sel=0 ;;
+
 			# S - shell
 			31)  boot_shell ;;
 
@@ -1094,9 +1097,6 @@ main()
 			# X - poweroff
                         45)  safe_poweroff ;;
 
-		        # B - Fallback if everything else fails
-		        48)  boot_script /sbin/preinit_real  ;;
-		    
 			# D -  Debugging another script
 			32)  boot_script /sbin/multiboot_debug  ;;
 
