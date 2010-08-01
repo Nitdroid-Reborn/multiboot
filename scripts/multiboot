@@ -24,10 +24,9 @@ MODULES_SEARCH="lib/modules/current/modules.boot etc/modules.boot system/etc/mod
 SLIDE_SEARCH="slide sw_lid"
 
 # Boot files
-BOOT_ITEM="/.multiboot.item"
-BOOT_FAST="/.multiboot.fast"
-BOOT_LOG0="/.multiboot.log"
-BOOT_LOG1="/.multiboot.log.old"
+BOOT_ITEM="/boot/multiboot/.multiboot.item"
+BOOT_FAST="/boot/multiboot/.multiboot.fast"
+BOOT_LOG0="/boot/multiboot/.multiboot.log"
 
 # MMC Cards
 EXT_CARD="mmcblk0"
@@ -159,7 +158,7 @@ is_slide_open()
 		if [ -d /sys/devices/platform/gpio-switch/$name ]
 		then
 			state=$(cat /sys/devices/platform/gpio-switch/$name/state)
-			log "Slide state from GPIO[$name] $state"
+			log "Slide state from GPIO[$name]: $state"
 			if [ X${state} = Xopen ]
 			then
 				return 0
@@ -209,7 +208,7 @@ is_tmp_mounted()
 {
 	if is_proc_mounted
 	then
-		cat /proc/mounts | cut -d' ' -f 2 | egrep -q '^/tmp$'
+		cat /proc/mounts | cut -d' ' -f 2 | grep -E -q '^/tmp$'
 	else
 		return 1
 	fi
@@ -220,7 +219,7 @@ is_dev_mounted()
 {
 	if is_proc_mounted
 	then
-		cat /proc/mounts | cut -d' ' -f 2 | egrep -q '^/dev$'
+		cat /proc/mounts | cut -d' ' -f 2 | grep -E -q '^/dev$'
 	else
 		return 1
 	fi
@@ -231,7 +230,7 @@ is_pts_mounted()
 {
 	if is_proc_mounted
 	then
-		cat /proc/mounts | cut -d' ' -f 2 | egrep -q '^/dev/pts$'
+		cat /proc/mounts | cut -d' ' -f 2 | grep -E -q '^/dev/pts$'
 	else
 		return 1
 	fi
@@ -242,7 +241,7 @@ is_mod_mounted()
 {
 	if is_proc_mounted
 	then
-		cat /proc/mounts | cut -d' ' -f 2 | egrep -q '^/lib/modules/'
+		cat /proc/mounts | cut -d' ' -f 2 | grep -E -q '^/lib/modules/'
 	else
 		return 1
 	fi
@@ -286,14 +285,14 @@ wait_root_device()
 
 	while [ $wait -gt 0 ]
 	do
-		if grep -q $dev /proc/partitions
+		if grep -F -q $dev /proc/partitions
 		then
-			log "Root device $dev available"
-
 			if [ -b /dev/$dev ]
 			then
+				log "Root device $dev OK"
 				return 0
 			else
+				log "Device node /dev/$dev missing"
 				return 1
 			fi
 		fi
@@ -312,7 +311,7 @@ load_kernel_modules()
 {
 	local FILE=""
 
-	local file module
+	local file module args
 
 	for file in ${MODULES_SEARCH}
 	do
@@ -327,12 +326,12 @@ load_kernel_modules()
 	then
 		log "Loading kernel modules from ${FILE}"
 
-		cat ${FILE} | egrep -v '^#' | while read module
+		cat ${FILE} | grep -E -v '^#' | while read module args
 		do
 			if [ -n "${module}" ]
 			then
 				log "Loading module ${module}"
-				modprobe -i -q ${module}
+				modprobe -i -q ${module} ${args}
 			fi
 		done
 	fi
@@ -409,16 +408,18 @@ store_config()
 
 	log "Storing boot configuration into file $file"
 
-	echo "ITEM_ID=\"$( array ID $1 )\""              > $file
-	echo "ITEM_NAME=\"$( array NAME $1 )\""         >> $file
-	echo "ITEM_KERNEL=\"$( array KERNEL $1 )\""     >> $file
-	echo "ITEM_MODULES=\"$( array MODULES $1 )\""   >> $file
-	echo "ITEM_PARAMS=\"$( array PARAMS $1 )\""     >> $file
-	echo "ITEM_DEVICE=\"$( array FS_ROOT $1 )\""    >> $file
-	echo "ITEM_FSTYPE=\"$( array FS_TYPE $1 )\""    >> $file
-	echo "ITEM_FSOPTIONS=\"$( array FS_OPTS $1 )\"" >> $file
-	echo "ITEM_LINUXRC=\"$( array INITRC $1 )\""    >> $file
-	echo "ITEM_INITFS=\"$( array INITFS $1 )\""     >> $file
+	(
+		echo "ITEM_ID=\"$( array ID $1 )\""
+		echo "ITEM_NAME=\"$( array NAME $1 )\""
+		echo "ITEM_KERNEL=\"$( array KERNEL $1 )\""
+		echo "ITEM_MODULES=\"$( array MODULES $1 )\""
+		echo "ITEM_PARAMS=\"$( array PARAMS $1 )\""
+		echo "ITEM_DEVICE=\"$( array FS_ROOT $1 )\""
+		echo "ITEM_FSTYPE=\"$( array FS_TYPE $1 )\""
+		echo "ITEM_FSOPTIONS=\"$( array FS_OPTS $1 )\""
+		echo "ITEM_LINUXRC=\"$( array INITRC $1 )\""
+		echo "ITEM_INITFS=\"$( array INITFS $1 )\""
+	) > $file
 }
 
 
@@ -551,10 +552,10 @@ print_menu()
 
 init_log()
 {
-	if [ -f ${BOOT_LOG0} ]
-	then
-		mv -f ${BOOT_LOG0} ${BOOT_LOG1}
-	fi
+	test -f ${BOOT_LOG0}.3  &&  mv -f ${BOOT_LOG0}.3 ${BOOT_LOG0}.4
+	test -f ${BOOT_LOG0}.2  &&  mv -f ${BOOT_LOG0}.2 ${BOOT_LOG0}.3
+	test -f ${BOOT_LOG0}.1  &&  mv -f ${BOOT_LOG0}.1 ${BOOT_LOG0}.2
+	test -f ${BOOT_LOG0}    &&  mv -f ${BOOT_LOG0}   ${BOOT_LOG0}.1
 
 	log "MULTIBOOT starting up"
 }
@@ -747,13 +748,13 @@ mount_root()
 	then
 		if mount $OPTS /dev/${FS_ROOT} /mnt
 		then
-			log "Mounted root fs /dev/${FS_ROOT} on /mnt"
+			log "Mounted root ${FS_ROOT} on /mnt"
 		else
-			log "Mounting root fs /dev/${FS_ROOT} FAILED"
+			log "Mounting root ${FS_ROOT} FAILED"
 			return 1
 		fi
 	else
-		log "Root device /dev/${FS_ROOT} not accessible"
+		log "Root device ${FS_ROOT} not accessible"
 		return 1
 	fi
 
@@ -765,7 +766,7 @@ umount_root()
 {
 	local FS_ROOT=$(array FS_ROOT $1)
 
-	log "Unmounting root fs ${FS_ROOT}"
+	log "Unmounting root ${FS_ROOT}"
 
 	umount "$FS_ROOT"
 }
@@ -949,7 +950,7 @@ boot_kexec()
 		log "kexec now..."
 
 		# Done with FS access
-		##done_fs
+		done_fs
 		sync
 
 		# Start the kernel
@@ -1042,6 +1043,7 @@ main()
 
 	init_screen
 	init_backlight
+
 	read_config
 	
 	while :
