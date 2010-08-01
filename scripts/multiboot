@@ -159,6 +159,7 @@ is_slide_open()
 		then
 			state=$(cat /sys/devices/platform/gpio-switch/$name/state)
 			log "Slide state from GPIO[$name]: $state"
+
 			if [ X${state} = Xopen ]
 			then
 				return 0
@@ -439,13 +440,23 @@ flash_kernel()
 swap_kernel()
 {
 	local KERNEL=$( array KERNEL $1 )
+	local VMLINUZ='none'
 
-	if [ -f /boot/multiboot/vmlinuz-$KERNEL -a -d /lib/modules/$KERNEL ]
+	for path in /boot/multiboot /boot
+	do
+		if [ -f ${path}/vmlinuz-${KERNEL} -a -d /lib/modules/${KERNEL} ]
+		then
+			VMLINUZ=${path}/vmlinuz-${KERNEL}
+			break
+		fi
+	done
+	
+	if [ -f ${VMLINUZ} ]
 	then
 		store_config $1 ${BOOT_ITEM}
 		touch ${BOOT_FAST}
 
-		flash_kernel "/boot/multiboot/vmlinuz-$KERNEL"
+		flash_kernel ${VMLINUZ}
 		
 		safe_reboot
 	else
