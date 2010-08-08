@@ -3,6 +3,8 @@
 #
 # List of modules the bootloader (multiboot) shall load.
 #
+# This example file is for NITDroid
+#
 
 # Watchdogs
 omap_wdt

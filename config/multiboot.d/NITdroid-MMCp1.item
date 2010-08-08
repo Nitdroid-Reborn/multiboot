@@ -1,5 +1,0 @@
-ITEM_NAME="NITdroid on MMCp1"
-ITEM_MODULES=ext3
-ITEM_DEVICE=${EXT_CARD}p1
-ITEM_FSTYPE=ext3
-ITEM_FSOPTIONS=rw,noatime,errors=remount-ro,commit=3

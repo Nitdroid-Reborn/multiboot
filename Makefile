@@ -13,12 +13,12 @@ SBIN_TARGETS :=	scripts/multiboot 		\
 		scripts/preinit_backup 		\
 		scripts/preinit_real
 
-ETC_TARGETS :=	config/modules.boot.example	\
+ETC_TARGETS  :=	config/modules.boot.example	\
 		config/power.conf.example
 
-CONF_TARGETS := README 				\
-		$(wildcard config/multiboot.d/*)
+CONF_TARGETS :=	README
 
+EXMP_TARGETS := $(wildcard config/examples/*)
 
 
 all: build
@@ -40,7 +40,9 @@ install:
 	install -o root -g root -m 0755 $(BIN_TARGETS) $(DESTDIR)/bin/
 	install -o root -g root -m 0755 $(SBIN_TARGETS) $(DESTDIR)/sbin/
 	install -o root -g root -m 0644 $(ETC_TARGETS) $(DESTDIR)/etc/
-	install -o root -g root -m 0644 $(CONF_TARGETS) $(DESTDIR)/etc/multiboot.d/examples/
+	install -o root -g root -m 0644 $(CONF_TARGETS) $(DESTDIR)/etc/multiboot.d/
+	install -o root -g root -m 0644 $(EXMP_TARGETS) $(DESTDIR)/etc/multiboot.d/examples/
+
 
 clean:
 	rm -f evkey/evkey
