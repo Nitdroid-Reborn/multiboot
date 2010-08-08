@@ -1,3 +1,12 @@
+multiboot (0.2.8) unstable; urgency=low
+
+  * A few changes:
+    - Search path for kernel images
+    - Error message screen
+    - New item examples for Maemo and Nitdroid
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Sun, 8 Aug 2010 11:12:11 +0100
+
 multiboot (0.2.7) unstable; urgency=low
 
   * Proper handling of initfs mount point
