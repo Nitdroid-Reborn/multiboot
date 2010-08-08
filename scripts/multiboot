@@ -83,6 +83,16 @@ log()
 }
 
 
+error()
+{
+	echo -e "ERROR: $1" >> ${BOOT_LOG0}
+
+	error_screen "$1"
+	get_key 20000
+	safe_reboot
+}
+
+
 safe_reboot()
 {
 	echo -n ${BOOT_STATE} > /var/lib/dsme/saved_state
@@ -296,7 +306,7 @@ wait_root_device()
 				log "Root device $dev OK"
 				return 0
 			else
-				log "Device node /dev/$dev missing"
+				error "Device node /dev/$dev NOT found!"
 				return 1
 			fi
 		fi
@@ -305,7 +315,7 @@ wait_root_device()
 		sleep 1
 	done
 
-	log "Root device $dev NOT available"
+	error "Root filesystem $dev NOT available!"
 
 	return 1
 }
@@ -463,7 +473,7 @@ swap_kernel()
 		
 		safe_reboot
 	else
-		log "Can't flash kernel ${KERNEL}. Required files not found."
+		error "Can't flash kernel, required files not found"
 	fi
 }
 
@@ -533,6 +543,19 @@ wait_screen()
 }
 
 
+error_screen()
+{
+	text2screen -c -x 0 -y   0 -w 790 -h 100 -B ${RED}
+	text2screen -c -x 0 -y 100 -w 790 -h 364 -B ${WHITE}
+	text2screen -c -x 10 -y 10 -w 770 -h  80 -B ${BLACK}
+	
+	text2screen -t "$1" -s 2 -x 40 -y 30 -T ${RED} -B ${BLACK}
+	text2screen -t "Guru Meditation #00000025.62017712" -s 2 -x 120 -y 60 -T ${RED} -B ${BLACK}
+
+	text2screen -t "Hit any key to panic" -s 1 -x 320 -y 260 -T ${BLACK} -B ${WHITE}
+}
+
+
 print_menu()
 {
 	local x y i
@@ -540,7 +563,7 @@ print_menu()
         text2screen -c -x 0 -y 0   -w 790 -h 464 -B ${WHITE}
 	text2screen -c -x 0 -y 100 -w 790 -h 30  -B ${BLACK}
 	text2screen -c -x 0 -y 464 -w 800 -h 16  -B ${BLACK}
-	text2screen -c -x 790 -y 0 -w 10 -h 480  -B ${BLACK}
+	text2screen -c -x 790 -y 0 -w 10  -h 480 -B ${BLACK}
 
 	text2screen -t "NOKIA N900 - MULTIBOOT" -s 3 -x 40 -y 40 -T ${BLUE} -B ${WHITE}
 	text2screen -t "Press a key to select" -s 2 -x 40 -y 108 -T ${WHITE} -B ${BLACK}
@@ -566,6 +589,8 @@ print_menu()
 
 init_log()
 {
+	test -f ${BOOT_LOG0}.5  &&  mv -f ${BOOT_LOG0}.5 ${BOOT_LOG0}.6
+	test -f ${BOOT_LOG0}.4  &&  mv -f ${BOOT_LOG0}.4 ${BOOT_LOG0}.5
 	test -f ${BOOT_LOG0}.3  &&  mv -f ${BOOT_LOG0}.3 ${BOOT_LOG0}.4
 	test -f ${BOOT_LOG0}.2  &&  mv -f ${BOOT_LOG0}.2 ${BOOT_LOG0}.3
 	test -f ${BOOT_LOG0}.1  &&  mv -f ${BOOT_LOG0}.1 ${BOOT_LOG0}.2
@@ -762,13 +787,13 @@ mount_root()
 	then
 		if mount $OPTS /dev/${FS_ROOT} /mnt
 		then
-			log "Mounted root ${FS_ROOT} on /mnt"
+			log "Mounted root device ${FS_ROOT} on /mnt"
 		else
-			log "Mounting root ${FS_ROOT} FAILED"
+			error "Mounting root device ${FS_ROOT} FAILED"
 			return 1
 		fi
 	else
-		log "Root device ${FS_ROOT} not accessible"
+		error "Root device ${FS_ROOT} not accessible"
 		return 1
 	fi
 
@@ -827,7 +852,7 @@ boot_maemo()
 	ulimit -c unlimited
 	ulimit -l unlimited
 
-	# HW Settings	
+	# HW Settings
 	echo active  > /sys/devices/platform/gpio-switch/cmt_bsi/state
 	echo 10  > /sys/devices/platform/serial8250.0/sleep_timeout
 
@@ -852,6 +877,9 @@ boot_maemo()
 
 	# Switch over
 	exec /sbin/init ${INITLEVEL}
+
+	# Fatal error
+	error "Excuting Maemo /sbin/init FAILED"
 
 	# Fallback
 	safe_reboot
@@ -924,8 +952,12 @@ boot_chroot()
 			if [ -x ${file} ]
 			then
 				exec chroot . ${file}
+				error "Excuting target ${file} FAILED"
 			fi
 		done
+
+		# Fatal error
+		error "Can't find init binary in target OS"
 	fi
 }
 
@@ -974,7 +1006,7 @@ boot_kexec()
 		# Start the kernel
 		exec kexec -f -e			
 	else
-		log "kernel ${KERNEL} not found."
+		error "kernel version ${KERNEL} not found."
 	fi
 
 	return 1
