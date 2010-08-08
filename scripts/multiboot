@@ -17,6 +17,9 @@ CONFIG_D=/etc/multiboot.d
 # init searchlist
 INIT_SEARCH="sbin/preinit sbin/init bin/init init linuxrc"
 
+# vmlinuz searchlist
+VMLINUZ_SEARCH="boot/multiboot/vmlinuz- boot/multiboot/zImage- boot/vmlinuz- boot/zImage-"
+
 # modules.boot searchlist
 MODULES_SEARCH="lib/modules/current/modules.boot etc/modules.boot system/etc/modules.boot"
 
@@ -442,15 +445,15 @@ swap_kernel()
 	local KERNEL=$( array KERNEL $1 )
 	local VMLINUZ='none'
 
-	for path in /boot/multiboot /boot
+	for prefix in ${VMLINUZ_SEARCH}
 	do
-		if [ -f ${path}/vmlinuz-${KERNEL} -a -d /lib/modules/${KERNEL} ]
+		if [ -f ${prefix}${KERNEL} -a -d /lib/modules/${KERNEL} ]
 		then
-			VMLINUZ=${path}/vmlinuz-${KERNEL}
+			VMLINUZ=${prefix}${KERNEL}
 			break
 		fi
 	done
-	
+
 	if [ -f ${VMLINUZ} ]
 	then
 		store_config $1 ${BOOT_ITEM}
