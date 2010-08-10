@@ -96,7 +96,7 @@ error()
 safe_reboot()
 {
 	echo -n ${BOOT_STATE} > /var/lib/dsme/saved_state
-	
+
 	log "Rebooting..."
 
 	mount / -o ro,remount
@@ -135,7 +135,6 @@ get_boot_state()
 	case "${reason}" in
 		pwr_key)	state=USER	;;
 		update)		state=FLASH	;;
-
 		usb)		state=ACT_DEAD	;;
 		charger)	state=ACT_DEAD	;;
 		rtc_alarm)	state=ACT_DEAD	;;
@@ -165,7 +164,7 @@ is_slide_open()
 {
 	local name
 	local state
-	
+
 	for name in ${SLIDE_SEARCH}
 	do
 		if [ -d /sys/devices/platform/gpio-switch/$name ]
@@ -184,13 +183,13 @@ is_slide_open()
 
 	state=$( evkey -s 0 /dev/event2 )
 	if [ X$state = X1 ]
-	then 
+	then
 		return 1
 	fi
 
 	state=$( evkey -s 0 /dev/event3 )
 	if [ X$state = X1 ]
-	then 
+	then
 		return 1
 	fi
 
@@ -272,10 +271,7 @@ mknod_misc()
 
 	if is_proc_mounted
 	then
-		cat /proc/misc | grep -F "$DEV" | while read a b c
-		do
-			minor=$a
-		done
+		minor=$(cat /proc/misc | grep -F "$DEV" | cut -f 1 -d' ')
 	else
 		case "$DEV" in
 			watchdog)	minor=130 ;;
@@ -287,7 +283,7 @@ mknod_misc()
 
 	if [ -n "${minor}" ]
 	then
-		mknod "$NAME" c 10 $minor
+		mknod "$NAME" c 10 "${minor}"
 	fi
 }
 
@@ -355,7 +351,7 @@ load_kernel_modules()
 load_modules()
 {
 	local module
-	
+
 	for module
 	do
 		log "Loading module $module"
@@ -396,7 +392,7 @@ read_config()
 
 			if [ $i -gt 9 ]
 			then
-				return 
+				return
 			fi
 		fi
 	done
@@ -470,7 +466,7 @@ swap_kernel()
 		touch ${BOOT_FAST}
 
 		flash_kernel ${VMLINUZ}
-		
+
 		safe_reboot
 	else
 		error "Can't flash kernel, required files not found"
@@ -499,7 +495,7 @@ wait_keypress()
 		then
 			return 0
 		fi
-		
+
 		t=$(expr $t - 1)
 	done
 
@@ -548,7 +544,7 @@ error_screen()
 	text2screen -c -x 0 -y   0 -w 790 -h 100 -B ${RED}
 	text2screen -c -x 0 -y 100 -w 790 -h 364 -B ${WHITE}
 	text2screen -c -x 10 -y 10 -w 770 -h  80 -B ${BLACK}
-	
+
 	text2screen -t "$1" -s 2 -x 40 -y 30 -T ${RED} -B ${BLACK}
 	text2screen -t "Guru Meditation #00000025.62017712" -s 2 -x 120 -y 60 -T ${RED} -B ${BLACK}
 
@@ -630,7 +626,7 @@ init_pm()
 	log "Initializing default power configuration"
 
 	## Default values for Maemo
-	
+
 	echo 1  > /sys/power/enable_off_mode
 	echo 1  > /sys/power/sleep_while_idle
 	echo 1  > /sys/power/clocks_off_while_idle
@@ -665,7 +661,7 @@ init_fs()
 		mkdir /dev/pts
 ##		mount -t devpts devpts /dev/pts -o gid=5,mode=0620
 	fi
-	
+
 	# Dev nodes
 	log "Creating device nodes in /dev"
 
@@ -843,7 +839,11 @@ boot_maemo()
 	log "Booting Maemo default configuration"
 
 	# Booting ok - save as default
-	store_config $1 ${BOOT_ITEM}
+	case ${BOOT_STATE} in
+		BOOT|USER|FLASH|SHUTDOWN)
+			store_config $1 ${BOOT_ITEM}
+			;;
+	esac
 
 	# Load all kernel modules
 	load_kernel_modules
@@ -857,7 +857,7 @@ boot_maemo()
 	echo 10  > /sys/devices/platform/serial8250.0/sleep_timeout
 
 	# init RUNLEVEL
-	case ${BOOT_STATE} in 
+	case ${BOOT_STATE} in
 		BOOT)		INITLEVEL=6  ;;
 		USER|FLASH)	INITLEVEL=2  ;;
 		ACT_DEAD)	INITLEVEL=5  ;;
@@ -1004,7 +1004,7 @@ boot_kexec()
 		sync
 
 		# Start the kernel
-		exec kexec -f -e			
+		exec kexec -f -e
 	else
 		error "kernel version ${KERNEL} not found."
 	fi
@@ -1031,7 +1031,7 @@ boot_item()
 			else
 				boot_chroot $1
 			fi
-	
+
 			safe_reboot
 		else
 			if [ X${FAST_BOOT} != XYES ]
@@ -1075,12 +1075,17 @@ main()
 	init_fs
 	init_pm
 
+	if [  ${BOOT_STATE} = ACT_DEAD ]
+	then
+		boot_maemo
+	fi
+
 	if [ -f ${BOOT_FAST} ]
 	then
 		FAST_BOOT=YES
 		rm -f ${BOOT_FAST}
 	fi
-	
+
 	if [ -f ${BOOT_ITEM} ]
 	then
 		load_config 99 ${BOOT_ITEM}
@@ -1095,13 +1100,13 @@ main()
 	init_backlight
 
 	read_config
-	
+
 	while :
 	do
 		print_menu
-		
+
 		sel=$(wait_keypress)
-	
+
 		echo -e -n '\r'
 
 		case $sel in
@@ -1123,7 +1128,7 @@ main()
 			23)  sel=8 ;;
 			24)  sel=9 ;;
 			25)  sel=0 ;;
-		        
+
 		        # B - Boot default
 		        48)  sel=0 ;;
 
