@@ -8,7 +8,7 @@ Standards-Version: 3.7.2
 Package: multiboot
 Architecture: armel
 Depends: softupd (>= 0.4.0), getbootstate (>= 1.0.38+0m5)
-Conflicts: bootmenu, bootmenu-n900, kernel-power, kernel-power-flasher
+Conflicts: bootmenu, bootmenu-n900
 Suggests: multiboot-kernel-maemo, multiboot-kernel-power
 Description: Maemo ULTimate BOOTloader
  This package installs an enhanced bootmenu, needed for booting 

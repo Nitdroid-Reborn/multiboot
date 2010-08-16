@@ -1,3 +1,9 @@
+multiboot (0.2.10) unstable; urgency=low
+
+  * Conflict with kernel-power removed
+
+ -- Jay Cartman <jay.cartman@gmail.com>  Thu, 12 Aug 2010 14:33:53 +0100
+
 multiboot (0.2.9) unstable; urgency=low
 
   * Offline charging fixed
