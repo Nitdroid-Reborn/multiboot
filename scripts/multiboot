@@ -138,9 +138,7 @@ get_boot_state()
 		usb)		state=ACT_DEAD	;;
 		charger)	state=ACT_DEAD	;;
 		rtc_alarm)	state=ACT_DEAD	;;
-
 		sw_rst)		state=${saved}	;;
-
 		por)		state=${saved}	;;
 		32wd_to)	state=${saved}	;;
 		swdg_to)	state=${saved}	;;
@@ -156,7 +154,7 @@ get_boot_state()
 
 get_key()
 {
-	evkey -u -t "$1" /dev/event1
+	/bin/evkey -d -t "$1" /dev/event1
 }
 
 
@@ -181,13 +179,13 @@ is_slide_open()
 		fi
 	done
 
-	state=$( evkey -s 0 /dev/event2 )
+	state=$( /bin/evkey -s 0 /dev/event2 )
 	if [ X$state = X1 ]
 	then
 		return 1
 	fi
 
-	state=$( evkey -s 0 /dev/event3 )
+	state=$( /bin/evkey -s 0 /dev/event3 )
 	if [ X$state = X1 ]
 	then
 		return 1
@@ -390,10 +388,7 @@ read_config()
 			ITEM_LIST="${ITEM_LIST} $i"
 			i=$(expr $i + 1)
 
-			if [ $i -gt 9 ]
-			then
-				return
-			fi
+			test $i -gt 9 && return
 		fi
 	done
 }
@@ -480,6 +475,7 @@ swap_kernel()
 # SCREEN FUNCTIONS
 #
 ################################################################################################
+
 
 wait_keypress()
 {
@@ -578,7 +574,7 @@ print_menu()
 
 ################################################################################################
 #
-# BOOTING FUNCTIONS
+# ENVIRONMENT FUNCTIONS
 #
 ################################################################################################
 
@@ -659,7 +655,7 @@ init_fs()
 	if ! is_pts_mounted
 	then
 		mkdir /dev/pts
-##		mount -t devpts devpts /dev/pts -o gid=5,mode=0620
+		mount -t devpts devpts /dev/pts -o gid=5,mode=0620
 	fi
 
 	# Dev nodes
@@ -755,6 +751,31 @@ done_fs()
 }
 
 
+init_state()
+{
+	if [  X${BOOT_STATE} = XACT_DEAD ]
+	then
+		boot_maemo
+	fi
+
+	if [ -f ${BOOT_FAST} ]
+	then
+		FAST_BOOT=YES
+		rm -f ${BOOT_FAST}
+	fi
+
+	if [ -f ${BOOT_ITEM} ]
+	then
+		load_config 99 ${BOOT_ITEM}
+	fi
+
+	if is_fast_boot || ! is_slide_open
+	then
+		boot_item 99
+	fi
+}
+
+
 mount_root()
 {
 	local FS_ROOT=$(array FS_ROOT $1)
@@ -834,9 +855,16 @@ prepare_root()
 }
 
 
+################################################################################################
+#
+# BOOTING FUNCTIONS
+#
+################################################################################################
+
+
 boot_maemo()
 {
-	log "Booting Maemo default configuration"
+	log "Booting Maemo from MTD"
 
 	# Booting ok - save as default
 	case ${BOOT_STATE} in
@@ -880,24 +908,6 @@ boot_maemo()
 
 	# Fatal error
 	error "Excuting Maemo /sbin/init FAILED"
-
-	# Fallback
-	safe_reboot
-}
-
-
-boot_script()
-{
-	log "Running script $*"
-
-	# Clear screen
-	clear_screen
-
-	# Done with filesystems
-	done_fs
-
-	# Start the script
-	exec "$@"
 
 	# Fallback
 	safe_reboot
@@ -959,6 +969,9 @@ boot_chroot()
 		# Fatal error
 		error "Can't find init binary in target OS"
 	fi
+
+	# Fallback
+	safe_reboot
 }
 
 
@@ -1009,7 +1022,46 @@ boot_kexec()
 		error "kernel version ${KERNEL} not found."
 	fi
 
-	return 1
+	# Fallback
+	safe_reboot
+}
+
+
+boot_script()
+{
+	log "Running script $*"
+
+	# Clear screen
+	clear_screen
+
+	# Done with filesystems
+	done_fs
+
+	# Start the script
+	exec "$@"
+
+	# Fallback
+	safe_reboot
+}
+
+
+boot_default()
+{
+	wait_screen 0
+
+	log "Booting default"
+
+	case $(uname -r) in
+		2.6.28-omap1) 			boot_maemo ;;
+		2.6.28.10power[0-9][0-9])	boot_maemo ;;
+	esac
+
+	if [ X${FAST_BOOT} != XYES ]
+	then
+		swap_kernel 0
+	fi
+
+	error "Maemo kernel not available!"
 }
 
 
@@ -1019,10 +1071,12 @@ boot_item()
 	local ROOT=$(array FS_ROOT $1)
 	local KERNEL=$(array KERNEL $1)
 
-	log "Booting item #$1"
-
 	if [ -n "$NAME" ]
 	then
+		wait_screen $1
+
+		log "Booting item #$1"
+
 		if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
 		then
 			if [ -z "$ROOT" ]
@@ -1061,10 +1115,15 @@ boot_shell()
 	log "Rebooting..."
 
 	sleep 3
-
 	safe_reboot
 }
 
+
+################################################################################################
+#
+# MAIN FUNCTION
+#
+################################################################################################
 
 main()
 {
@@ -1074,28 +1133,7 @@ main()
 	init_hw
 	init_fs
 	init_pm
-
-	if [  ${BOOT_STATE} = ACT_DEAD ]
-	then
-		boot_maemo
-	fi
-
-	if [ -f ${BOOT_FAST} ]
-	then
-		FAST_BOOT=YES
-		rm -f ${BOOT_FAST}
-	fi
-
-	if [ -f ${BOOT_ITEM} ]
-	then
-		load_config 99 ${BOOT_ITEM}
-	fi
-
-	if is_fast_boot || ! is_slide_open
-	then
-		boot_item 99
-	fi
-
+	init_state
 	init_screen
 	init_backlight
 
@@ -1117,7 +1155,7 @@ main()
 			# Enter
 		        28)  sel=99 ;;
 
-			# 0-9
+			# 1-9
 			16)  sel=1 ;;
 			17)  sel=2 ;;
 			18)  sel=3 ;;
@@ -1127,30 +1165,25 @@ main()
 			22)  sel=7 ;;
 			23)  sel=8 ;;
 			24)  sel=9 ;;
-			25)  sel=0 ;;
 
-		        # B - Boot default
-		        48)  sel=0 ;;
+			# 0/B - Boot default
+			25|48)  boot_default ;;
 
 			# S - shell
 			31)  boot_shell ;;
 
-		        # Backscape - reboot
-		        14)  safe_reboot ;;
+			# Backscape - reboot
+			14)  safe_reboot ;;
 
 			# X - poweroff
-                        45)  safe_poweroff ;;
+			45)  safe_poweroff ;;
 
 			# D -  Debugging another script
 			32)  boot_script /sbin/multiboot_debug  ;;
 
 		esac
 
-		if [ -n "$(array NAME $sel)" ]
-		then
-			wait_screen $sel
-			boot_item $sel
-		fi
+		boot_item $sel
 
 		log "Booting item #${sel} failed. Trying again."
 	done
