@@ -9,7 +9,7 @@
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 # Timeout for the menu
-MAIN_TIMEOUT=30
+MAIN_TIMEOUT=15
 
 # Configuration directory
 CONFIG_D=/etc/multiboot.d
@@ -48,11 +48,13 @@ if [ -e /etc/INSIDE_QEMU ]
 then
 	BLACK=0x000000
 	WHITE=0xFFFFFF
+	GREY=0x808080
 	BLUE=0x0000FF
 	RED=0xFF0000
 else
 	BLACK=0x0000
 	WHITE=0xFFFF
+	GREY=0x8410
 	BLUE=0x001F
 	RED=0xF800
 fi
@@ -559,6 +561,8 @@ print_menu()
 
 	text2screen -t "NOKIA N900 - MULTIBOOT" -s 3 -x 40 -y 40 -T ${BLUE} -B ${WHITE}
 	text2screen -t "Press a key to select" -s 2 -x 40 -y 108 -T ${WHITE} -B ${BLACK}
+
+	text2screen -t "Press B to boot Maemo with the running kernel - Press X for poweroff - Press ENTER for default" -s 1 -x 10 -y 454 -T ${GREY} -B ${WHITE}
 
 	x=60
 	y=160
