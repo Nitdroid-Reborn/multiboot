@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# Maemo ULTimate BOOTloader
+# multiboot	Maemo ULTimate BOOTloader
 #
-# Copyright (C) 2010  Jay Cartman
+#		Copyright (C) 2010  Jay Cartman <jay.cartman@gmail.com>
 #
 
 # Search path
@@ -29,7 +29,7 @@ SLIDE_SEARCH="slide sw_lid"
 # Boot files
 BOOT_ITEM="/boot/multiboot/.multiboot.item"
 BOOT_FAST="/boot/multiboot/.multiboot.fast"
-BOOT_LOG0="/boot/multiboot/.multiboot.log"
+BOOT_LOGF="/boot/multiboot/.multiboot.log"
 
 # MMC Cards
 EXT_CARD="mmcblk0"
@@ -66,28 +66,33 @@ fi
 #
 ################################################################################################
 
-
 array()
 {
-	if [ -z "$3" ]
-	then
-		eval echo "\$ARRAY__${1}__${2}__"
-	else
-		eval ARRAY__$1__$2__="$3"
-	fi
+	eval echo "\${ARRAY__${1}__${2}__}"
 }
 
 
-log()
+SAY()
 {
-	echo -e "$1" >> ${BOOT_LOG0}
-	echo -e "$1"
+	echo -e "$@" >&2
 }
 
 
-error()
+LOG()
 {
-	echo -e "ERROR: $1" >> ${BOOT_LOG0}
+	echo -e "$@" >&5
+}
+
+
+RUN()
+{
+	eval "$@" >&5 2>&5
+}
+
+
+ERROR()
+{
+	LOG "*** ERROR" "$@"
 
 	error_screen "$1"
 	get_key 20000
@@ -95,15 +100,22 @@ error()
 }
 
 
+run()
+{
+	LOG "    RUN [" "$@" "]"
+	RUN "$@"
+}
+
+
 safe_reboot()
 {
 	echo -n ${BOOT_STATE} > /var/lib/dsme/saved_state
 
-	log "Rebooting..."
+	LOG "Rebooting..."
 
-	mount / -o ro,remount
-	sync
-	reboot -f
+	run mount / -o ro,remount
+	run sync
+	run reboot -f
 }
 
 
@@ -111,11 +123,11 @@ safe_poweroff()
 {
 	echo -n ${BOOT_STATE} > /var/lib/dsme/saved_state
 
-	log "Poweroff..."
+	LOG "Poweroff..."
 
-	mount / -o ro,remount
-	sync
-	poweroff -f
+	run mount / -o ro,remount
+	run sync
+	run poweroff -f
 }
 
 
@@ -123,9 +135,15 @@ get_boot_state()
 {
 	local state reason saved
 
+	LOG "System Information:"
+	LOG "    kernel      $(uname -r)"
+	LOG "    build       $(uname -v)"
+	LOG "    nolo        $(cat /proc/component_version | fgrep nolo | cut -c 13-)"
+	LOG "    hw-rev      $(cat /proc/component_version | fgrep hw-build | cut -c 13-)"
+
 	reason=$(cat /proc/bootreason)
 
-	log "Boot reason: $reason"
+	LOG "Boot reason: $reason"
 
 	if [ -e /var/lib/dsme/saved_state ]
 	then
@@ -148,9 +166,21 @@ get_boot_state()
 		*)		state=MALF	;;
 	esac
 
-	log "Boot state: $state"
+	LOG "Boot state: $state"
 
 	BOOT_STATE=${state}
+}
+
+
+sysset()
+{
+	if [ -w /sys/$1 ]
+	then
+		LOG "    SET $1 $2"
+		echo $2 > /sys/$1
+	else
+		LOG "*** WARNING: No such writable sysfs entry: $1"
+	fi
 }
 
 
@@ -170,7 +200,7 @@ is_slide_open()
 		if [ -d /sys/devices/platform/gpio-switch/$name ]
 		then
 			state=$(cat /sys/devices/platform/gpio-switch/$name/state)
-			log "Slide state from GPIO[$name]: $state"
+			LOG "Slide state from GPIO[$name]: $state"
 
 			if [ X${state} = Xopen ]
 			then
@@ -193,7 +223,7 @@ is_slide_open()
 		return 1
 	fi
 
-	log "Slide state unknown"
+	LOG "*** WARNING: Slide state unknown"
 
 	return 0
 }
@@ -283,7 +313,9 @@ mknod_misc()
 
 	if [ -n "${minor}" ]
 	then
-		mknod "$NAME" c 10 "${minor}"
+		run mknod "$NAME" c 10 "${minor}"
+	else
+		LOG "*** WARNING: No minor found for $DEV. Ignoring."
 	fi
 }
 
@@ -293,25 +325,27 @@ wait_root_device()
 	local dev=$1
 	local wait=$2
 
+	LOG "Waiting for root device ${dev} (${wait}s)"
+
 	while [ $wait -gt 0 ]
 	do
 		if grep -F -q $dev /proc/partitions
 		then
 			if [ -b /dev/$dev ]
 			then
-				log "Root device $dev OK"
+				LOG "Root device $dev OK"
 				return 0
 			else
-				error "Device node /dev/$dev NOT found!"
+				ERROR "Device node /dev/$dev NOT found!"
 				return 1
 			fi
 		fi
 
-		wait=$(expr $wait - 1)
+		wait=$(( $wait - 1 ))
 		sleep 1
 	done
 
-	error "Root filesystem $dev NOT available!"
+	ERROR "Root filesystem $dev NOT available!"
 
 	return 1
 }
@@ -334,14 +368,14 @@ load_kernel_modules()
 
 	if [ -f "${FILE}" ]
 	then
-		log "Loading kernel modules from ${FILE}"
+		LOG "Loading kernel modules from ${FILE}"
 
 		cat ${FILE} | grep -E -v '^#' | while read module args
 		do
 			if [ -n "${module}" ]
 			then
-				log "Loading module ${module}"
-				modprobe -i -q ${module} ${args}
+				LOG "Loading module ${module}"
+				run modprobe -i ${module} ${args}
 			fi
 		done
 	fi
@@ -354,8 +388,8 @@ load_modules()
 
 	for module
 	do
-		log "Loading module $module"
-		modprobe -i -q $module
+		LOG "Loading module $module"
+		run modprobe -i $module
 	done
 }
 
@@ -366,8 +400,8 @@ load_pmconfig()
 
 	if [ -e $FILE ]
 	then
-		log "Loading kernel power configuration from $FILE"
-		powerconfig $FILE
+		LOG "Loading kernel power configuration from $FILE"
+		run powerconfig $FILE
 	fi
 }
 
@@ -383,12 +417,12 @@ read_config()
 	do
 		if [ -e "$file" ]
 		then
-			log "Reading boot item [$i] from file $file"
+			LOG "Reading boot item [$i] from file $file"
 
 			eval $( /sbin/multiboot_read_item FN=$i $file )
 
 			ITEM_LIST="${ITEM_LIST} $i"
-			i=$(expr $i + 1)
+			i=$(( $i + 1 ))
 
 			test $i -gt 9 && return
 		fi
@@ -402,7 +436,7 @@ load_config()
 
 	if [ -f "$file" ]
 	then
-		log "Reading boot item [$1] from file $file"
+		LOG "Reading boot item [$1] from file $file"
 
 		eval $( /sbin/multiboot_read_item FN=$1 $file )
 	fi
@@ -413,31 +447,31 @@ store_config()
 {
 	local file="$2"
 
-	log "Storing boot configuration into file $file"
+	LOG "Storing boot configuration into file $file"
 
-	(
-		echo "ITEM_ID=\"$( array ID $1 )\""
-		echo "ITEM_NAME=\"$( array NAME $1 )\""
-		echo "ITEM_KERNEL=\"$( array KERNEL $1 )\""
-		echo "ITEM_MODULES=\"$( array MODULES $1 )\""
-		echo "ITEM_PARAMS=\"$( array PARAMS $1 )\""
-		echo "ITEM_DEVICE=\"$( array FS_ROOT $1 )\""
-		echo "ITEM_FSTYPE=\"$( array FS_TYPE $1 )\""
-		echo "ITEM_FSOPTIONS=\"$( array FS_OPTS $1 )\""
-		echo "ITEM_LINUXRC=\"$( array INITRC $1 )\""
-		echo "ITEM_INITFS=\"$( array INITFS $1 )\""
-	) > $file
+cat > $file << EOM
+ITEM_ID="$( array ID $1 )"
+ITEM_NAME="$( array NAME $1 )"
+ITEM_KERNEL="$( array KERNEL $1 )"
+ITEM_MODULES="$( array MODULES $1 )"
+ITEM_PARAMS="$( array PARAMS $1 )"
+ITEM_DEVICE="$( array FS_ROOT $1 )"
+ITEM_FSTYPE="$( array FS_TYPE $1 )"
+ITEM_FSOPTIONS="$( array FS_OPTS $1 )"
+ITEM_LINUXRC="$( array INITRC $1 )"
+ITEM_INITFS="$( array INITFS $1 )"
+EOM
 }
 
 
 flash_kernel()
 {
-	log "Flashing kernel file $1"
+	LOG "Flashing kernel file $1"
 
 	ifconfig lo 127.0.0.1 netmask 255.0.0.0 up
 
 	softupd --local --verbose --stdout --standalone &
-	flasher --local -f -k $1
+	flasher --local --flash --kernel $1
 
 	ifconfig lo down
 }
@@ -459,14 +493,14 @@ swap_kernel()
 
 	if [ -f ${VMLINUZ} ]
 	then
-		store_config $1 ${BOOT_ITEM}
-		touch ${BOOT_FAST}
+		run store_config $1 ${BOOT_ITEM}
+		run touch ${BOOT_FAST}
 
-		flash_kernel ${VMLINUZ}
+		run flash_kernel ${VMLINUZ}
 
 		safe_reboot
 	else
-		error "Can't flash kernel, required files not found"
+		ERROR "Can't flash kernel, required files not found"
 	fi
 }
 
@@ -477,7 +511,6 @@ swap_kernel()
 # SCREEN FUNCTIONS
 #
 ################################################################################################
-
 
 wait_keypress()
 {
@@ -494,7 +527,7 @@ wait_keypress()
 			return 0
 		fi
 
-		t=$(expr $t - 1)
+		t=$(( $t - 1 ))
 	done
 
 	echo "D"
@@ -505,8 +538,8 @@ wait_keypress()
 
 init_screen()
 {
-	echo -e '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'
-	echo -e '\r---------------------------------------------------------------------------------------------------\r'
+	SAY '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'
+	SAY '\r---------------------------------------------------------------------------------------------------\r'
 }
 
 
@@ -570,7 +603,7 @@ print_menu()
 	for i in ${ITEM_LIST}
 	do
 		text2screen -t "$i - $(array NAME $i)" -x $x -y $y -T ${BLACK} -B ${WHITE} -s 2
-		y=$(expr $y + 22)
+		y=$(( $y + 22 ))
 	done
 }
 
@@ -582,23 +615,24 @@ print_menu()
 #
 ################################################################################################
 
-
 init_log()
 {
-	test -f ${BOOT_LOG0}.5  &&  mv -f ${BOOT_LOG0}.5 ${BOOT_LOG0}.6
-	test -f ${BOOT_LOG0}.4  &&  mv -f ${BOOT_LOG0}.4 ${BOOT_LOG0}.5
-	test -f ${BOOT_LOG0}.3  &&  mv -f ${BOOT_LOG0}.3 ${BOOT_LOG0}.4
-	test -f ${BOOT_LOG0}.2  &&  mv -f ${BOOT_LOG0}.2 ${BOOT_LOG0}.3
-	test -f ${BOOT_LOG0}.1  &&  mv -f ${BOOT_LOG0}.1 ${BOOT_LOG0}.2
-	test -f ${BOOT_LOG0}    &&  mv -f ${BOOT_LOG0}   ${BOOT_LOG0}.1
+	test -f ${BOOT_LOGF}.5  &&  mv -f ${BOOT_LOGF}.5 ${BOOT_LOGF}.6
+	test -f ${BOOT_LOGF}.4  &&  mv -f ${BOOT_LOGF}.4 ${BOOT_LOGF}.5
+	test -f ${BOOT_LOGF}.3  &&  mv -f ${BOOT_LOGF}.3 ${BOOT_LOGF}.4
+	test -f ${BOOT_LOGF}.2  &&  mv -f ${BOOT_LOGF}.2 ${BOOT_LOGF}.3
+	test -f ${BOOT_LOGF}.1  &&  mv -f ${BOOT_LOGF}.1 ${BOOT_LOGF}.2
+	test -f ${BOOT_LOGF}    &&  mv -f ${BOOT_LOGF}   ${BOOT_LOGF}.1
 
-	log "MULTIBOOT starting up"
+	exec 5> ${BOOT_LOGF}
+
+	LOG "MULTIBOOT starting up"
 }
 
 
 init_hw()
 {
-	log "Initializing HW"
+	LOG "Initializing HW"
 
 	## Kernel modules required in bootup
 
@@ -611,147 +645,147 @@ init_hw()
 
 init_backlight()
 {
-	log "Initializing backlights"
+	LOG "Initializing backlights"
 
 	for i in 1 2 3 4 5 6 ; do
-		echo 208 > /sys/class/leds/lp5523:kb${i}/brightness
+		sysset class/leds/lp5523:kb${i}/brightness 208
 	done
 
-	echo 120 > /sys/class/backlight/acx565akm/brightness
+	sysset class/backlight/acx565akm/brightness 120
 }
 
 
 init_pm()
 {
-	log "Initializing default power configuration"
+	LOG "Initializing default power configuration"
 
 	## Default values for Maemo
 
-	echo 1  > /sys/power/enable_off_mode
-	echo 1  > /sys/power/sleep_while_idle
-	echo 1  > /sys/power/clocks_off_while_idle
-	echo 1  > /sys/power/voltage_off_while_idle
-	echo 0  > /sys/power/sr_vdd1_autocomp
-	echo 0  > /sys/power/sr_vdd2_autocomp
+	sysset power/enable_off_mode         1
+	sysset power/sleep_while_idle        1
+	sysset power/clocks_off_while_idle   1
+	sysset power/voltage_off_while_idle  1
+	sysset power/sr_vdd1_autocomp        0
+	sysset power/sr_vdd2_autocomp        0
 
-	echo ondemand  > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-	echo 600000    > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
-	echo 250000    > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq
+	sysset devices/system/cpu/cpu0/cpufreq/scaling_governor  ondemand
+	sysset devices/system/cpu/cpu0/cpufreq/scaling_max_freq  600000
+	sysset devices/system/cpu/cpu0/cpufreq/scaling_min_freq  250000
 
-	echo 600000    > /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed
+	sysset devices/system/cpu/cpu0/cpufreq/scaling_setspeed  600000
 }
 
 
 init_fs()
 {
-	log "Mounting filesystems: proc sys tmp dev"
+	LOG "Mounting filesystems: proc sys tmp dev"
 
 	# Mount point for new root
-	test -d /mnt || mkdir -m 0700 /mnt
+	test -d /mnt || run mkdir -m 0700 /mnt
 
 	# Mount pseudo filesystems
-	is_proc_mounted || mount -t proc  none /proc
-	is_sys_mounted  || mount -t sysfs none /sys
-        is_dev_mounted  || mount -t tmpfs none -o size=128K /dev
-        is_tmp_mounted  || mount -t tmpfs none -o size=512K /tmp
+	is_proc_mounted || run mount -t proc  none /proc
+	is_sys_mounted  || run mount -t sysfs none /sys
+        is_dev_mounted  || run mount -t tmpfs none -o size=128K /dev
+        is_tmp_mounted  || run mount -t tmpfs none -o size=512K /tmp
 
 	# Mount for pts
 	if ! is_pts_mounted
 	then
-		mkdir /dev/pts
-		mount -t devpts devpts /dev/pts -o gid=5,mode=0620
+		run mkdir /dev/pts
+		run mount -t devpts devpts /dev/pts -o gid=5,mode=0620
 	fi
 
 	# Dev nodes
-	log "Creating device nodes in /dev"
+	LOG "Creating device nodes in /dev"
 
-        mknod /dev/mem  c 1 1
-        mknod /dev/null c 1 3
-        mknod /dev/zero c 1 5
-        mknod /dev/kmem c 1 2
-        mknod /dev/kmsg c 1 11
+        run mknod /dev/mem  c 1 1
+        run mknod /dev/null c 1 3
+        run mknod /dev/zero c 1 5
+        run mknod /dev/kmem c 1 2
+        run mknod /dev/kmsg c 1 11
 
-        mknod /dev/mtd0 c 90 0
-        mknod /dev/mtd1 c 90 2
-        mknod /dev/mtd2 c 90 4
-        mknod /dev/mtd3 c 90 6
-        mknod /dev/mtd4 c 90 8
-        mknod /dev/mtd5 c 90 10
+        run mknod /dev/mtd0 c 90 0
+        run mknod /dev/mtd1 c 90 2
+        run mknod /dev/mtd2 c 90 4
+        run mknod /dev/mtd3 c 90 6
+        run mknod /dev/mtd4 c 90 8
+        run mknod /dev/mtd5 c 90 10
 
-	mknod /dev/mmcblk0   b 179 0
-	mknod /dev/mmcblk0p1 b 179 1
-	mknod /dev/mmcblk0p2 b 179 2
-	mknod /dev/mmcblk0p3 b 179 3
-	mknod /dev/mmcblk0p4 b 179 4
-	mknod /dev/mmcblk0p5 b 179 5
-	mknod /dev/mmcblk0p6 b 179 6
-	mknod /dev/mmcblk0p7 b 179 7
+	run mknod /dev/mmcblk0   b 179 0
+	run mknod /dev/mmcblk0p1 b 179 1
+	run mknod /dev/mmcblk0p2 b 179 2
+	run mknod /dev/mmcblk0p3 b 179 3
+	run mknod /dev/mmcblk0p4 b 179 4
+	run mknod /dev/mmcblk0p5 b 179 5
+	run mknod /dev/mmcblk0p6 b 179 6
+	run mknod /dev/mmcblk0p7 b 179 7
 
-	mknod /dev/mmcblk1   b 179 8
-	mknod /dev/mmcblk1p1 b 179 9
-	mknod /dev/mmcblk1p2 b 179 10
-	mknod /dev/mmcblk1p3 b 179 11
-	mknod /dev/mmcblk1p4 b 179 12
-	mknod /dev/mmcblk1p5 b 179 13
-	mknod /dev/mmcblk1p6 b 179 14
-	mknod /dev/mmcblk1p7 b 179 15
+	run mknod /dev/mmcblk1   b 179 8
+	run mknod /dev/mmcblk1p1 b 179 9
+	run mknod /dev/mmcblk1p2 b 179 10
+	run mknod /dev/mmcblk1p3 b 179 11
+	run mknod /dev/mmcblk1p4 b 179 12
+	run mknod /dev/mmcblk1p5 b 179 13
+	run mknod /dev/mmcblk1p6 b 179 14
+	run mknod /dev/mmcblk1p7 b 179 15
 
-        mknod /dev/i2c-1 c 89 1
-        mknod /dev/i2c-2 c 89 2
-        mknod /dev/i2c-3 c 89 3
+        run mknod /dev/i2c-1 c 89 1
+        run mknod /dev/i2c-2 c 89 2
+        run mknod /dev/i2c-3 c 89 3
 
-	mknod /dev/event0 c 13 64
-	mknod /dev/event1 c 13 65
-	mknod /dev/event2 c 13 66
-	mknod /dev/event3 c 13 67
+	run mknod /dev/event0 c 13 64
+	run mknod /dev/event1 c 13 65
+	run mknod /dev/event2 c 13 66
+	run mknod /dev/event3 c 13 67
 
-        mknod /dev/console c 5 1
+        run mknod /dev/console c 5 1
 
-	mknod /dev/fb0 c 29 0
-	mknod /dev/fb1 c 29 1
-	mknod /dev/fb2 c 29 2
+	run mknod /dev/fb0 c 29 0
+	run mknod /dev/fb1 c 29 1
+	run mknod /dev/fb2 c 29 2
 
-        mknod_misc /dev/watchdog      watchdog
-        mknod_misc /dev/twl4030_wdt   twl4030_wdt
-        mknod_misc /dev/twl4030-adc   twl4030-adc
-        mknod_misc /dev/twl4030-madc  twl4030-adc
+	run mknod_misc /dev/watchdog      watchdog
+	run mknod_misc /dev/twl4030_wdt   twl4030_wdt
+	run mknod_misc /dev/twl4030-adc   twl4030-adc
+	run mknod_misc /dev/twl4030-madc  twl4030-adc
 
-	mkdir -m 0755 /dev/shm
+	run mkdir -m 0755 /dev/shm
 
-        ln -s /proc/self/fd   /dev/fd
-        ln -s /proc/self/fd/0 /dev/stdin
-        ln -s /proc/self/fd/1 /dev/stdout
-        ln -s /proc/self/fd/2 /dev/stderr
+	run ln -s /proc/self/fd   /dev/fd
+	run ln -s /proc/self/fd/0 /dev/stdin
+	run ln -s /proc/self/fd/1 /dev/stdout
+	run ln -s /proc/self/fd/2 /dev/stderr
 
 	## Modules
-	log "Configuring modules for $(uname -r)"
+	LOG "Configuring modules for $(uname -r)"
 
 	# Current link
-	rm -f /lib/modules/current
-	ln -s $(uname -r) /lib/modules/current
+	run rm -f /lib/modules/current
+	run ln -s $(uname -r) /lib/modules/current
 
 	# Depmod
-	depmod -A $(uname -r)
+	run depmod -A $(uname -r)
 
 	# Boot reason
-	get_boot_state
+	run get_boot_state
 }
 
 
 done_fs()
 {
-	log "Unmounting filesystems: pts dev tmp sys proc"
+	LOG "Unmounting filesystems: pts dev tmp sys proc"
 
 	# Unmount filesystems
-	is_mod_mounted     && umount /lib/modules/$(uname -r)
-	is_pts_mounted     && umount /dev/pts
-	is_dev_mounted     && umount /dev
-	is_tmp_mounted     && umount /tmp
-	is_sys_mounted     && umount /sys
-	is_proc_mounted    && umount /proc
+	is_mod_mounted     && run umount /lib/modules/$(uname -r)
+	is_pts_mounted     && run umount /dev/pts
+	is_dev_mounted     && run umount /dev
+	is_tmp_mounted     && run umount /tmp
+	is_sys_mounted     && run umount /sys
+	is_proc_mounted    && run umount /proc
 
 	# All written to disks
-	sync
+	run sync
 }
 
 
@@ -759,23 +793,26 @@ init_state()
 {
 	if [  X${BOOT_STATE} = XACT_DEAD ]
 	then
+		LOG "Booting Maemo in ACT_DEAD"
 		boot_maemo
 	fi
 
 	if [ -f ${BOOT_FAST} ]
 	then
+		LOG "Setting FAST_BOOT=YES"
 		FAST_BOOT=YES
 		rm -f ${BOOT_FAST}
 	fi
 
 	if [ -f ${BOOT_ITEM} ]
 	then
-		load_config 99 ${BOOT_ITEM}
+		run load_config 99 ${BOOT_ITEM}
 	fi
 
 	if is_fast_boot || ! is_slide_open
 	then
-		boot_item 99
+		LOG "Fast-booting the default"
+		run boot_item 99
 	fi
 }
 
@@ -791,44 +828,36 @@ mount_root()
 
 	if [ -n "$FS_TYPE" ]
 	then
-		OPTS="${OPTS} -t $FS_TYPE"
+		LOG "Root fs type: ${FS_TYPE}"
+		OPTS="${OPTS} -t ${FS_TYPE}"
 	fi
 
 	if [ -n "$FS_OPTS" ]
 	then
-		OPTS="${OPTS} -o $FS_OPTS"
+		LOG "Root fs options: ${FS_OPTS}"
+		OPTS="${OPTS} -o ${FS_OPTS}"
 	fi
 
 	if [ -n "$MODULES" ]
 	then
-		load_modules $MODULES
+		run load_modules $MODULES
 	fi
 
-	if wait_root_device "$FS_ROOT" 10
+	if run wait_root_device "${FS_ROOT}" 10
 	then
-		if mount $OPTS /dev/${FS_ROOT} /mnt
+		if run mount $OPTS /dev/${FS_ROOT} /mnt
 		then
-			log "Mounted root device ${FS_ROOT} on /mnt"
+			LOG "Mounted root device ${FS_ROOT} on /mnt"
 		else
-			error "Mounting root device ${FS_ROOT} FAILED"
+			ERROR "Mounting root device ${FS_ROOT} FAILED"
 			return 1
 		fi
 	else
-		error "Root device ${FS_ROOT} not accessible"
+		ERROR "Root device ${FS_ROOT} not accessible"
 		return 1
 	fi
 
 	return 0
-}
-
-
-umount_root()
-{
-	local FS_ROOT=$(array FS_ROOT $1)
-
-	log "Unmounting root ${FS_ROOT}"
-
-	umount "$FS_ROOT"
 }
 
 
@@ -838,24 +867,24 @@ prepare_root()
 	local INITFS="$2"
 	local MPATH="/lib/modules/$(uname -r)"
 
-	log "Preparing root filesystem"
+	LOG "Preparing root filesystem"
 
 	# Must have initfs mount point
 	if [ ! -d ${ROOT}/${INITFS} ]
 	then
-		rm -f ${ROOT}/${INITFS}
-		mkdir -m 0755 ${ROOT}/${INITFS}
+		run rm -f ${ROOT}/${INITFS}
+		run mkdir -m 0755 ${ROOT}/${INITFS}
 	fi
 
 	# Current link in modules
-	rm -f ${ROOT}/lib/modules/current
-	ln -s $(uname -r) ${ROOT}/lib/modules/current
+	run rm -f ${ROOT}/lib/modules/current
+	run ln -s $(uname -r) ${ROOT}/lib/modules/current
 
 	# Modules overlay
-	mount -o bind ${ROOT}/${MPATH} ${MPATH}
+	run mount -o bind ${ROOT}/${MPATH} ${MPATH}
 
 	# Depencies - now using the overlay
-	depmod -A $(uname -r)
+	run depmod -A $(uname -r)
 }
 
 
@@ -865,28 +894,27 @@ prepare_root()
 #
 ################################################################################################
 
-
 boot_maemo()
 {
-	log "Booting Maemo from MTD"
+	LOG "Booting Maemo from MTD"
 
 	# Booting ok - save as default
 	case ${BOOT_STATE} in
 		BOOT|USER|FLASH|SHUTDOWN)
-			store_config $1 ${BOOT_ITEM}
+			run store_config $1 ${BOOT_ITEM}
 			;;
 	esac
 
 	# Load all kernel modules
-	load_kernel_modules
+	run load_kernel_modules
 
 	# Limits
 	ulimit -c unlimited
 	ulimit -l unlimited
 
 	# HW Settings
-	echo active  > /sys/devices/platform/gpio-switch/cmt_bsi/state
-	echo 10  > /sys/devices/platform/serial8250.0/sleep_timeout
+	sysset devices/platform/gpio-switch/cmt_bsi/state active
+	sysset devices/platform/serial8250.0/sleep_timeout 10
 
 	# init RUNLEVEL
 	case ${BOOT_STATE} in
@@ -902,16 +930,16 @@ boot_maemo()
 ##	fiasco-do-update
 
 	# Done with filesystems
-	done_fs
+	run done_fs
 
 	# Start init
-	log "Starting /sbin/init ${INITLEVEL}"
+	LOG "Starting /sbin/init ${INITLEVEL}"
 
 	# Switch over
-	exec /sbin/init ${INITLEVEL}
+	run exec /sbin/init ${INITLEVEL}
 
 	# Fatal error
-	error "Excuting Maemo /sbin/init FAILED"
+	ERROR "Excuting Maemo /sbin/init FAILED"
 
 	# Fallback
 	safe_reboot
@@ -931,47 +959,45 @@ boot_chroot()
 		INITFS=${INITFS##/}
 	fi
 
-	log "initfs in ${INITFS}"
+	LOG "initfs in ${INITFS}"
 
 	# Mount new root filesystem
 	if mount_root $1
 	then
 		# Booting ok - save as default
-		store_config $1 ${BOOT_ITEM}
+		run store_config $1 ${BOOT_ITEM}
 
 		# Prepare root filesystem
-		prepare_root /mnt ${INITFS}
+		run prepare_root /mnt ${INITFS}
 
 		# Load all kernel modules
-		load_kernel_modules
+		run load_kernel_modules
 
 		# PM configuration
-		load_pmconfig /mnt
+		run load_pmconfig /mnt
 
 		# Done with extra filesystems
-		done_fs
-
-		# Must log before pivot
-		log "Switching over to init"
+		run done_fs
 
 		# New root location
 		cd /mnt || return 1
 
 		# Pivot root into initfs
-		pivot_root . ${INITFS}
+		run pivot_root . ${INITFS}
 
 		# Switch over
 		for file in ${INITRC} ${INIT_SEARCH}
 		do
 			if [ -x ${file} ]
 			then
+				LOG "Switching over to ${file}"
 				exec chroot . ${file}
-				error "Excuting target ${file} FAILED"
+				ERROR "Excuting ${file} FAILED"
 			fi
 		done
 
 		# Fatal error
-		error "Can't find init binary in target OS"
+		ERROR "Can't find init binary in target OS"
 	fi
 
 	# Fallback
@@ -1006,24 +1032,20 @@ boot_kexec()
 		CMDLINE="$(cat /proc/cmdline)"
 	fi
 
-	log "Booting [${PREFIX}]${KERNEL} ${CMDLINE}"
+	LOG "Booting [${PREFIX}]${KERNEL} ${CMDLINE}"
 
 	if [ -e "${PREFIX}${KERNEL}" ]
 	then
 		# Load new kernel
-		kexec -l "${PREFIX}${KERNEL}" --command-line="${CMDLINE}"
-
-		# Say something
-		log "kexec now..."
+		run kexec -l "${PREFIX}${KERNEL}" --command-line="${CMDLINE}"
 
 		# Done with FS access
-		done_fs
-		sync
+		run done_fs
 
 		# Start the kernel
-		exec kexec -f -e
+		run exec kexec -f -e
 	else
-		error "kernel version ${KERNEL} not found."
+		ERROR "kernel version ${KERNEL} not found."
 	fi
 
 	# Fallback
@@ -1033,16 +1055,16 @@ boot_kexec()
 
 boot_script()
 {
-	log "Running script $*"
+	LOG "Running script $*"
 
 	# Clear screen
 	clear_screen
 
 	# Done with filesystems
-	done_fs
+	run done_fs
 
 	# Start the script
-	exec "$@"
+	run exec "$@"
 
 	# Fallback
 	safe_reboot
@@ -1053,7 +1075,7 @@ boot_default()
 {
 	wait_screen 0
 
-	log "Booting default"
+	LOG "Booting default"
 
 	case $(uname -r) in
 		2.6.28-omap1) 			boot_maemo ;;
@@ -1062,10 +1084,10 @@ boot_default()
 
 	if [ X${FAST_BOOT} != XYES ]
 	then
-		swap_kernel 0
+		run swap_kernel 0
 	fi
 
-	error "Maemo kernel not available!"
+	ERROR "Maemo kernel not available!"
 }
 
 
@@ -1079,22 +1101,22 @@ boot_item()
 	then
 		wait_screen $1
 
-		log "Booting item #$1"
+		LOG "Booting item #$1"
 
 		if [ -z "$KERNEL" -o "$KERNEL" == "$(uname -r)" ]
 		then
 			if [ -z "$ROOT" ]
 			then
-				boot_maemo $1
+				run boot_maemo $1
 			else
-				boot_chroot $1
+				run boot_chroot $1
 			fi
 
 			safe_reboot
 		else
 			if [ X${FAST_BOOT} != XYES ]
 			then
-				swap_kernel $1
+				run swap_kernel $1
 			fi
 		fi
 	fi
@@ -1103,20 +1125,19 @@ boot_item()
 
 boot_shell()
 {
-	log "Starting shell"
-
 	clear_screen
 
-	echo -e "\n\nEntering a root shell.\nType 'exit' to leave."
+	SAY "\n\nEntering a root shell.\nType 'exit' to leave."
+	LOG "Starting shell"
 
 	if [ -x /sbin/getty ]
 	then
-		/sbin/getty 115200 console -n -l /bin/sh
+		run /sbin/getty 115200 console -n -l /bin/sh
 	else
-		/bin/sh
+		run /bin/sh
 	fi
 
-	log "Rebooting..."
+	SAY "Rebooting..."
 
 	sleep 3
 	safe_reboot
@@ -1131,7 +1152,7 @@ boot_shell()
 
 main()
 {
-	local sel i
+	local key
 
 	init_log
 	init_hw
@@ -1141,55 +1162,55 @@ main()
 	init_screen
 	init_backlight
 
-	read_config
+	run read_config
 
 	while :
 	do
 		print_menu
 
-		sel=$(wait_keypress)
+		key=$(wait_keypress)
 
-		echo -e -n '\r'
+		SAY -n '\r'
 
-		case $sel in
+		case $key in
 
 			# Timeout
-			D)   sel=99 ;;
+			D)   key=99 ;;
 
 			# Enter
-		        28)  sel=99 ;;
+		        28)  key=99 ;;
 
 			# 1-9
-			16)  sel=1 ;;
-			17)  sel=2 ;;
-			18)  sel=3 ;;
-			19)  sel=4 ;;
-			20)  sel=5 ;;
-			21)  sel=6 ;;
-			22)  sel=7 ;;
-			23)  sel=8 ;;
-			24)  sel=9 ;;
+			16)  key=1 ;;
+			17)  key=2 ;;
+			18)  key=3 ;;
+			19)  key=4 ;;
+			20)  key=5 ;;
+			21)  key=6 ;;
+			22)  key=7 ;;
+			23)  key=8 ;;
+			24)  key=9 ;;
 
 			# 0/B - Boot default
-			25|48)  boot_default ;;
+			25|48)  run boot_default ;;
 
 			# S - shell
-			31)  boot_shell ;;
+			31)  run boot_shell ;;
 
 			# Backscape - reboot
-			14)  safe_reboot ;;
+			14)  run safe_reboot ;;
 
 			# X - poweroff
-			45)  safe_poweroff ;;
+			45)  run safe_poweroff ;;
 
 			# D -  Debugging another script
-			32)  boot_script /sbin/multiboot_debug  ;;
+			32)  run boot_script /sbin/multiboot_debug  ;;
 
 		esac
 
-		boot_item $sel
+		run boot_item $key
 
-		log "Booting item #${sel} failed. Trying again."
+		LOG "Booting item #${key} failed. Trying again."
 	done
 }
 
