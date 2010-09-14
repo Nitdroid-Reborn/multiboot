@@ -8,17 +8,17 @@ Standards-Version: 3.7.2
 Package: multiboot
 Architecture: armel
 Depends: softupd (>= 0.4.0), getbootstate (>= 1.0.38+0m5)
-Conflicts: bootmenu, bootmenu-n900
+Conflicts: bootmenu, bootmenu-n900, multiboot-extras
 Suggests: multiboot-kernel-maemo, multiboot-kernel-power
 Description: Maemo ULTimate BOOTloader
- This package installs an enhanced bootmenu, needed for booting 
- from a MMC card. This is required e.g. for booting other operating 
- systems, like Meego or Android.
+ This package installs an enhanced bootloader, needed for booting 
+ from an MMC card. This is required e.g. for booting other operating 
+ systems, like Android.
  .
  This bootloader has many advanced features, including automatic kernel 
  flashing using flasher tools, kexec support, power configuration, etc.
  .
  This software was written by Jay Cartman <jay.cartman@gmail.com>
  .
-XB-Maemo-Display-Name: Enhanced boot loader for Maemo
+XB-Maemo-Display-Name: Multiboot - Maemo Ultimate Bootloader
 XB-Maemo-Flags: system-update
