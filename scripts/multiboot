@@ -1055,19 +1055,21 @@ boot_kexec()
 
 boot_script()
 {
-	LOG "Running script $*"
+	if [ -x $1 ]
+	then
+		LOG "Running script $@"
 
-	# Clear screen
-	clear_screen
+		# Clear screen
+		clear_screen
 
-	# Done with filesystems
-	run done_fs
+		# Start the script
+		eval "$@"
 
-	# Start the script
-	run exec "$@"
-
-	# Fallback
-	safe_reboot
+		# Fallback
+		safe_reboot
+	else
+		LOG "Script $1 does not exist."
+	fi
 }
 
 
@@ -1123,27 +1125,6 @@ boot_item()
 }
 
 
-boot_shell()
-{
-	clear_screen
-
-	SAY "\n\nEntering a root shell.\nType 'exit' to leave."
-	LOG "Starting shell"
-
-	if [ -x /sbin/getty ]
-	then
-		run /sbin/getty 115200 console -n -l /bin/sh
-	else
-		run /bin/sh
-	fi
-
-	SAY "Rebooting..."
-
-	sleep 3
-	safe_reboot
-}
-
-
 ################################################################################################
 #
 # MAIN FUNCTION
@@ -1194,17 +1175,22 @@ main()
 			# 0/B - Boot default
 			25|48)  run boot_default ;;
 
-			# S - shell
-			31)  run boot_shell ;;
-
 			# Backscape - reboot
 			14)  run safe_reboot ;;
 
 			# X - poweroff
 			45)  run safe_poweroff ;;
 
-			# D -  Debugging another script
-			32)  run boot_script /sbin/multiboot_debug  ;;
+			# ASDFGHJKL - Multiboot plugins
+			30)  boot_script /sbin/multiboot_plugin_a ;;
+			31)  boot_script /sbin/multiboot_plugin_s ;;
+			32)  boot_script /sbin/multiboot_plugin_d ;;
+			33)  boot_script /sbin/multiboot_plugin_f ;;
+			34)  boot_script /sbin/multiboot_plugin_g ;;
+			35)  boot_script /sbin/multiboot_plugin_h ;;
+			36)  boot_script /sbin/multiboot_plugin_j ;;
+			37)  boot_script /sbin/multiboot_plugin_k ;;
+			38)  boot_script /sbin/multiboot_plugin_l ;;
 
 		esac
 
