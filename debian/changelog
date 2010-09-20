@@ -1,3 +1,9 @@
+multiboot (0.2.11) unstable; urgency=low
+
+  * Minor improvements here and there
+  
+ -- Jay Cartman <jay.cartman@gmail.com>  Wed, 15 Sep 2010 10:18:43 +0100
+
 multiboot (0.2.10) unstable; urgency=low
 
   * Conflict with kernel-power removed
